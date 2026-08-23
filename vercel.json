@@ -1,18 +1,4 @@
 {
   "version": 2,
-  "framework": "nextjs",
-  "env": {
-    "GEMINI_API_KEY": "@gemini_api_key",
-    "OPENAI_API_KEY": "@openai_api_key",
-    "COHERE_API_KEY": "@cohere_api_key",
-    "PINECONE_API_KEY": "@pinecone_api_key"
-  },
-  "build": {
-    "env": {
-      "GEMINI_API_KEY": "@gemini_api_key",
-      "OPENAI_API_KEY": "@openai_api_key",
-      "COHERE_API_KEY": "@cohere_api_key",
-      "PINECONE_API_KEY": "@pinecone_api_key"
-    }
-  }
+  "framework": "nextjs"
 }
