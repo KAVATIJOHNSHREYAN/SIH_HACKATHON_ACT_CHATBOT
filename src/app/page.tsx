@@ -67,36 +67,36 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen">
+    <div className="flex-1 flex flex-col min-h-screen" style={{ backgroundColor: '#f0fdf4' }}>
       {/* Top Navigation */}
-      <header className="sticky top-0 z-50 border-b border-white/5 bg-slate-950/80 backdrop-blur-md">
+      <header className="sticky top-0 z-50" style={{ backgroundColor: '#ffffff', borderBottom: '1.5px solid #bbf0bb' }}>
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-xl overflow-hidden shadow-lg shadow-purple-500/20">
+            <div className="h-9 w-9 rounded-xl overflow-hidden">
               <img src="/logo.png" alt="ACT Logo" className="h-full w-full object-cover" />
             </div>
-            <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+            <span className="text-xl font-bold tracking-tight" style={{ color: '#0d2d0d' }}>
               ACT
             </span>
           </div>
 
-          <nav className="hidden md:flex items-center gap-8 text-sm text-slate-300">
-            <a href="#features" className="hover:text-white transition-colors">Features</a>
-            <a href="#showcase" className="hover:text-white transition-colors">Showcase</a>
-            <a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a>
-            <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
-            <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
+          <nav className="hidden md:flex items-center gap-8 text-sm font-medium" style={{ color: '#4b7a4b' }}>
+            <a href="#features" className="transition-colors" style={{ color: '#4b7a4b' }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.color='#16a34a'} onMouseLeave={e => (e.currentTarget as HTMLElement).style.color='#4b7a4b'}>Features</a>
+            <a href="#showcase" className="transition-colors" style={{ color: '#4b7a4b' }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.color='#16a34a'} onMouseLeave={e => (e.currentTarget as HTMLElement).style.color='#4b7a4b'}>Showcase</a>
+            <a href="#how-it-works" className="transition-colors" style={{ color: '#4b7a4b' }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.color='#16a34a'} onMouseLeave={e => (e.currentTarget as HTMLElement).style.color='#4b7a4b'}>How It Works</a>
+            <a href="#pricing" className="transition-colors" style={{ color: '#4b7a4b' }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.color='#16a34a'} onMouseLeave={e => (e.currentTarget as HTMLElement).style.color='#4b7a4b'}>Pricing</a>
+            <a href="#faq" className="transition-colors" style={{ color: '#4b7a4b' }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.color='#16a34a'} onMouseLeave={e => (e.currentTarget as HTMLElement).style.color='#4b7a4b'}>FAQ</a>
           </nav>
 
           <div className="flex items-center gap-4">
-            <Link href="/auth/login" className="text-sm font-medium text-slate-300 hover:text-white transition-colors px-3 py-2">
+            <Link href="/auth/login" className="text-sm font-semibold px-3 py-2 rounded-lg transition-colors" style={{ color: '#16a34a' }}>
               Login
             </Link>
             <Link href="/auth/register">
-              <Button size="sm">
+              <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105" style={{ background: 'linear-gradient(135deg, #16a34a, #22c55e)', boxShadow: '0 4px 16px rgba(34,197,94,0.3)' }}>
                 Get Started
-                <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-              </Button>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
             </Link>
           </div>
         </div>
@@ -105,45 +105,45 @@ export default function LandingPage() {
       {/* Main Content */}
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="relative pt-24 pb-20 md:pt-32 md:pb-28 overflow-hidden">
+        <section className="relative pt-24 pb-20 md:pt-32 md:pb-28 overflow-hidden" style={{ background: 'linear-gradient(160deg, #f0fdf4 0%, #dcfce7 60%, #f0fdf4 100%)' }}>
           <div className="max-w-7xl mx-auto px-6 relative z-10 text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-purple-500/30 bg-purple-500/10 text-xs font-semibold text-purple-300 mb-6 shadow-[0_0_15px_rgba(139,92,246,0.1)]">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold mb-6" style={{ backgroundColor: '#dcfce7', border: '1.5px solid #86efac', color: '#16a34a' }}>
               <Bot className="h-3.5 w-3.5" />
               Meet ACT — Your Intelligent Transformation Partner
             </div>
             
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-white mb-6 max-w-5xl mx-auto leading-[1.1]">
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 max-w-5xl mx-auto leading-[1.1]" style={{ color: '#0d2d0d' }}>
               Automate Content Transformation with{" "}
-              <span className="bg-gradient-to-r from-violet-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
+              <span style={{ color: '#16a34a' }}>
                 Generative AI
               </span>
             </h1>
             
-            <p className="text-slate-400 text-lg md:text-xl max-w-3xl mx-auto mb-10 leading-relaxed">
+            <p className="text-lg md:text-xl max-w-3xl mx-auto mb-10 leading-relaxed" style={{ color: '#4b7a4b' }}>
               Upload documents, audio files, code, or raw data. ACT automatically chunks, embeds, reads, and transforms them into reports, summaries, templates, and high-fidelity structured outputs.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto">
               <Link href="/auth/register" className="w-full sm:w-auto">
-                <Button size="lg" className="w-full">
+                <button className="w-full px-8 py-3.5 rounded-xl text-sm font-bold text-white transition-all hover:scale-105" style={{ background: 'linear-gradient(135deg, #16a34a, #22c55e)', boxShadow: '0 6px 24px rgba(34,197,94,0.35)' }}>
                   Start Free Trial
-                </Button>
+                </button>
               </Link>
               <a href="#showcase" className="w-full sm:w-auto">
-                <Button variant="outline" size="lg" className="w-full">
+                <button className="w-full px-8 py-3.5 rounded-xl text-sm font-bold transition-all hover:scale-105" style={{ border: '2px solid #22c55e', color: '#16a34a', backgroundColor: 'transparent' }}>
                   See Transformation Demo
-                </Button>
+                </button>
               </a>
             </div>
 
-            {/* Glowing Orbs */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none -z-10" />
-            <div className="absolute top-1/3 left-1/4 w-[300px] h-[300px] bg-cyan-600/10 rounded-full blur-[90px] pointer-events-none -z-10" />
+            {/* Green Orbs */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full blur-[120px] pointer-events-none -z-10" style={{ backgroundColor: 'rgba(34,197,94,0.08)' }} />
+            <div className="absolute top-1/3 left-1/4 w-[300px] h-[300px] rounded-full blur-[90px] pointer-events-none -z-10" style={{ backgroundColor: 'rgba(16,185,129,0.07)' }} />
           </div>
         </section>
 
         {/* Feature Highlights Grid */}
-        <section id="features" className="py-20 border-t border-white/5 relative bg-slate-950/40">
+        <section id="features" className="py-20 relative" style={{ backgroundColor: '#ffffff', borderTop: '1.5px solid #dcfce7' }}>
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
