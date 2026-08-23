@@ -1,0 +1,5 @@
+SIH 2026 Smart India Hackathon Guidelines.
+Theme: Generative AI automated content transformation pipelines.
+Objective: Refactor documentation structures dynamically using Gemini large language models.
+The liability cap is set under Section 9.1 to 2x the registration fees.
+ACT is the main content extraction and indexing assistant.

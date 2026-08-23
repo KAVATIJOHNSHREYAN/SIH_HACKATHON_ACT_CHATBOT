@@ -1,0 +1,140 @@
+"use client";
+
+import React, { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Sparkles, Mail, Lock, User, Building, UserPlus, ArrowLeft } from "lucide-react";
+import { GlassCard } from "@/components/ui/GlassCard";
+import { Button } from "@/components/ui/Button";
+
+export default function RegisterPage() {
+  const router = useRouter();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [org, setOrg] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      router.push("/dashboard");
+    }, 1000);
+  };
+
+  return (
+    <div className="flex-1 flex items-center justify-center min-h-screen px-6 py-12 relative overflow-hidden">
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[400px] h-[400px] bg-cyan-600/10 rounded-full blur-[100px] pointer-events-none -z-10" />
+
+      <div className="absolute top-6 left-6">
+        <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors">
+          <ArrowLeft className="h-4 w-4" />
+          Back to home
+        </Link>
+      </div>
+
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-violet-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-purple-500/20 mx-auto mb-4">
+            <Sparkles className="h-5 w-5 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Create your ACT Account</h1>
+          <p className="text-sm text-slate-400 mt-2">Get started with 50 free credits</p>
+        </div>
+
+        <GlassCard className="p-8">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">
+                Full Name
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                  <User className="h-4.5 w-4.5" />
+                </span>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="John Doe"
+                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-950 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500 transition-colors"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">
+                Email Address
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                  <Mail className="h-4.5 w-4.5" />
+                </span>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="john@example.com"
+                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-950 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500 transition-colors"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">
+                Organization / Company
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                  <Building className="h-4.5 w-4.5" />
+                </span>
+                <input
+                  type="text"
+                  value={org}
+                  onChange={(e) => setOrg(e.target.value)}
+                  placeholder="Acme Corp"
+                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-950 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500 transition-colors"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">
+                Password
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                  <Lock className="h-4.5 w-4.5" />
+                </span>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-950 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500 transition-colors"
+                />
+              </div>
+            </div>
+
+            <Button type="submit" className="w-full pt-3" disabled={loading}>
+              {loading ? "Registering..." : "Create Account"}
+              <UserPlus className="ml-2 h-4 w-4" />
+            </Button>
+          </form>
+
+          <p className="text-center text-xs text-slate-500 mt-6">
+            Already have an account?{" "}
+            <Link href="/auth/login" className="text-purple-400 hover:text-purple-300 transition-colors">
+              Log in
+            </Link>
+          </p>
+        </GlassCard>
+      </div>
+    </div>
+  );
+}
