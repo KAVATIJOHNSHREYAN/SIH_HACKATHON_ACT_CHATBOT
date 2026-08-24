@@ -18,50 +18,50 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-          <BarChart3 className="h-6 w-6 text-purple-400" />
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+          <BarChart3 className="h-6 w-6 text-purple-600" />
           Analytics Dashboard
         </h1>
-        <p className="text-slate-400 text-xs mt-1">Usage statistics and processing distribution logs.</p>
+        <p className="text-slate-600 text-xs mt-1">Usage statistics and processing distribution logs.</p>
       </div>
 
       {/* Numerical Stats overview */}
       <div className="grid sm:grid-cols-3 gap-6">
-        <GlassCard className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+        <GlassCard className="border-slate-200 bg-white shadow-sm flex items-center gap-4">
+          <div className="h-10 w-10 rounded-xl bg-purple-500/10 border border-purple-200 flex items-center justify-center text-purple-600">
             <Cpu className="h-5 w-5" />
           </div>
           <div>
             <p className="text-[10px] uppercase font-bold tracking-wider text-slate-500">LLM Tokens Processed</p>
-            <h3 className="text-xl font-bold text-white mt-0.5">1.24M</h3>
+            <h3 className="text-xl font-bold text-slate-800 mt-0.5">1.24M</h3>
           </div>
         </GlassCard>
 
-        <GlassCard className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+        <GlassCard className="border-slate-200 bg-white shadow-sm flex items-center gap-4">
+          <div className="h-10 w-10 rounded-xl bg-cyan-500/10 border border-cyan-200 flex items-center justify-center text-cyan-600">
             <HardDrive className="h-5 w-5" />
           </div>
           <div>
             <p className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Vector Index Storage</p>
-            <h3 className="text-xl font-bold text-white mt-0.5">42.8 MB / 500 MB</h3>
+            <h3 className="text-xl font-bold text-slate-800 mt-0.5">42.8 MB / 500 MB</h3>
           </div>
         </GlassCard>
 
-        <GlassCard className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+        <GlassCard className="border-slate-200 bg-white shadow-sm flex items-center gap-4">
+          <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-200 flex items-center justify-center text-emerald-600">
             <FileCheck className="h-5 w-5" />
           </div>
           <div>
             <p className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Overall Success Rate</p>
-            <h3 className="text-xl font-bold text-white mt-0.5">99.8%</h3>
+            <h3 className="text-xl font-bold text-slate-800 mt-0.5">99.8%</h3>
           </div>
         </GlassCard>
       </div>
 
       {/* Styled Mock Chart */}
-      <GlassCard className="p-6">
-        <h3 className="text-sm font-bold text-white mb-6">Words Transformed (Weekly Analysis)</h3>
-        <div className="h-64 flex items-end gap-3.5 pt-6 border-b border-white/10 pb-2">
+      <GlassCard className="border-slate-200 bg-white shadow-sm p-6">
+        <h3 className="text-sm font-bold text-slate-800 mb-6">Words Transformed (Weekly Analysis)</h3>
+        <div className="h-64 flex items-end gap-3.5 pt-6 border-b border-slate-100 pb-2">
           {chartData.map((data) => {
             const heightPct = (data.words / 100000) * 100;
             return (
@@ -70,7 +70,7 @@ export default function AnalyticsPage() {
                   className="w-full bg-gradient-to-t from-purple-600 to-cyan-400 rounded-t-lg transition-all duration-500 hover:brightness-110 relative"
                   style={{ height: `${heightPct}%` }}
                 >
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-950 border border-white/10 text-[9px] text-white px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-800 text-[9px] text-white px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-md">
                     {data.words.toLocaleString()} words
                   </div>
                 </div>

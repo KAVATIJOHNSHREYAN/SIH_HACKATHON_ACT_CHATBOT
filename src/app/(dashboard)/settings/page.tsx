@@ -54,72 +54,72 @@ export default function SettingsPage() {
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-          <Settings className="h-6 w-6 text-purple-400" />
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+          <Settings className="h-6 w-6 text-purple-600" />
           Settings Panel
         </h1>
-        <p className="text-slate-400 text-xs mt-1">Configure credentials, notification triggers, and active workspaces.</p>
+        <p className="text-slate-600 text-xs mt-1">Configure credentials, notification triggers, and active workspaces.</p>
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
         {/* API Credentials */}
-        <GlassCard className="space-y-4">
-          <h2 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3 mb-4">
-            <KeyRound className="h-4.5 w-4.5 text-purple-400" />
+        <GlassCard className="border-slate-200 bg-white shadow-sm space-y-4">
+          <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
+            <KeyRound className="h-4.5 w-4.5 text-purple-600" />
             API Keys Configuration
           </h2>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Gemini API Key</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Gemini API Key</label>
               <input
                 type="password"
                 value={geminiKey}
                 onChange={(e) => setGeminiKey(e.target.value)}
                 placeholder="Enter Gemini API Token"
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white text-xs focus:outline-none focus:border-purple-500"
+                className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-purple-500 shadow-sm"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">OpenAI API Key (Optional)</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">OpenAI API Key (Optional)</label>
               <input
                 type="password"
                 value={openaiKey}
                 onChange={(e) => setOpenaiKey(e.target.value)}
                 placeholder="Enter OpenAI API Token"
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white text-xs focus:outline-none focus:border-purple-500"
+                className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-purple-500 shadow-sm"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Cohere API Key (Optional)</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Cohere API Key (Optional)</label>
               <input
                 type="password"
                 value={cohereKey}
                 onChange={(e) => setCohereKey(e.target.value)}
                 placeholder="Enter Cohere API Token"
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white text-xs focus:outline-none focus:border-purple-500"
+                className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-purple-500 shadow-sm"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Pinecone API Key (Optional)</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Pinecone API Key (Optional)</label>
               <input
                 type="password"
                 value={pineconeKey}
                 onChange={(e) => setPineconeKey(e.target.value)}
                 placeholder="Enter Pinecone API Token"
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-white text-xs focus:outline-none focus:border-purple-500"
+                className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-purple-500 shadow-sm"
               />
             </div>
           </div>
         </GlassCard>
 
         {/* Notifications & Toggles */}
-        <GlassCard className="space-y-4">
-          <h2 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3 mb-4">
-            <Bell className="h-4.5 w-4.5 text-cyan-400" />
+        <GlassCard className="border-slate-200 bg-white shadow-sm space-y-4">
+          <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
+            <Bell className="h-4.5 w-4.5 text-cyan-600" />
             Notification Settings
           </h2>
 
@@ -133,10 +133,10 @@ export default function SettingsPage() {
                 <input
                   type="checkbox"
                   defaultChecked
-                  className="mt-1 rounded border-white/10 bg-slate-950 text-purple-600 focus:ring-purple-500"
+                  className="mt-1 rounded border-slate-200 bg-white text-purple-600 focus:ring-purple-500"
                 />
                 <div>
-                  <p className="text-xs font-semibold text-white group-hover:text-purple-400 transition-colors">{item.title}</p>
+                  <p className="text-xs font-semibold text-slate-800 group-hover:text-purple-600 transition-colors">{item.title}</p>
                   <p className="text-[10px] text-slate-500">{item.desc}</p>
                 </div>
               </label>
@@ -145,23 +145,23 @@ export default function SettingsPage() {
         </GlassCard>
 
         {/* Billing Placeholders */}
-        <GlassCard className="space-y-4">
-          <h2 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3 mb-4">
-            <CreditCard className="h-4.5 w-4.5 text-emerald-400" />
+        <GlassCard className="border-slate-200 bg-white shadow-sm space-y-4">
+          <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
+            <CreditCard className="h-4.5 w-4.5 text-emerald-600" />
             Subscription & Billing
           </h2>
-          <div className="flex justify-between items-center bg-slate-950/40 p-4 rounded-xl border border-white/5">
+          <div className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-150 shadow-sm">
             <div>
-              <p className="text-xs font-bold text-white">Pro Plan Subscription</p>
+              <p className="text-xs font-bold text-slate-800">Pro Plan Subscription</p>
               <p className="text-[10px] text-slate-500">Renews automatically on Sep 23, 2026</p>
             </div>
-            <span className="px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300 font-semibold text-[10px] uppercase">
+            <span className="px-3 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-700 font-semibold text-[10px] uppercase shadow-sm">
               Active
             </span>
           </div>
         </GlassCard>
 
-        <Button type="submit">Save Configurations</Button>
+        <Button type="submit" className="shadow-md">Save Configurations</Button>
       </form>
     </div>
   );

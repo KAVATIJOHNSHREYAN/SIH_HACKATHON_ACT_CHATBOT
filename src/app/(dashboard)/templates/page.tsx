@@ -26,8 +26,8 @@ export default function TemplatesPage() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Transformation Templates</h1>
-        <p className="text-slate-400 text-xs mt-1">Pre-configured transformation templates mapped by target industry needs.</p>
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Transformation Templates</h1>
+        <p className="text-slate-600 text-xs mt-1">Pre-configured transformation templates mapped by target industry needs.</p>
       </div>
 
       {/* Category selector row */}
@@ -38,8 +38,8 @@ export default function TemplatesPage() {
             onClick={() => setActiveCategory(cat)}
             className={`px-4 py-2 rounded-xl text-xs font-semibold border transition-all shrink-0 ${
               activeCategory === cat
-                ? "bg-purple-600/15 border-purple-500/30 text-white shadow-lg shadow-purple-500/5"
-                : "bg-slate-900/60 border-white/5 text-slate-400 hover:text-white"
+                ? "bg-purple-50 border-purple-200 text-purple-700 shadow-sm font-semibold"
+                : "bg-white border-slate-200 text-slate-600 hover:text-slate-800"
             }`}
           >
             {cat}
@@ -49,19 +49,19 @@ export default function TemplatesPage() {
 
       <div className="grid md:grid-cols-3 gap-6">
         {filteredTemplates.map((tpl) => (
-          <GlassCard key={tpl.id} className="flex flex-col justify-between h-56">
+          <GlassCard key={tpl.id} className="border-slate-200 bg-white shadow-sm flex flex-col justify-between h-56">
             <div>
               <div className="flex items-center justify-between mb-4">
-                <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-white/10 text-slate-400 text-[9px] uppercase tracking-wider font-semibold">
+                <span className="px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 text-slate-600 text-[9px] uppercase tracking-wider font-semibold">
                   {tpl.category}
                 </span>
-                <tpl.icon className="h-5 w-5 text-purple-400" />
+                <tpl.icon className="h-5 w-5 text-purple-600" />
               </div>
-              <h3 className="text-sm font-bold text-white mb-2">{tpl.title}</h3>
-              <p className="text-slate-400 text-xs leading-relaxed line-clamp-3">{tpl.desc}</p>
+              <h3 className="text-sm font-bold text-slate-800 mb-2">{tpl.title}</h3>
+              <p className="text-slate-500 text-xs leading-relaxed line-clamp-3">{tpl.desc}</p>
             </div>
             
-            <Button variant="outline" size="sm" className="w-full mt-4 text-[10px] py-2">
+            <Button variant="outline" size="sm" className="w-full mt-4 text-[10px] py-2 shadow-sm">
               Activate Template
               <Zap className="ml-1.5 h-3.5 w-3.5 fill-current" />
             </Button>
