@@ -17,6 +17,32 @@ export const metadata: Metadata = {
   description: "Transform your documents, files, audios, and text seamlessly using ACT, the next-generation enterprise content AI transformation engine.",
   keywords: ["AI transformation", "PDF summary", "OCR text extraction", "content generation", "RAG chat"],
   authors: [{ name: "ACT Platform Team" }],
+  metadataBase: new URL("https://sih-hackathon-act-chatbot.vercel.app"),
+  openGraph: {
+    type: "website",
+    url: "https://sih-hackathon-act-chatbot.vercel.app",
+    title: "ACT | AI Content Transformation Platform",
+    description: "Transform your documents, files, audios, and text seamlessly using ACT, the next-generation enterprise content AI transformation engine.",
+    siteName: "ACT Platform",
+    images: [
+      {
+        url: "/logo-1024.png",
+        width: 1024,
+        height: 1024,
+        alt: "ACT — AI Content Transformation Assistant",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ACT | AI Content Transformation Platform",
+    description: "Transform your documents, files, audios, and text seamlessly using ACT, the next-generation enterprise content AI transformation engine.",
+    images: ["/logo-1024.png"],
+  },
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo-1024.png",
+  },
 };
 
 export default function RootLayout({
