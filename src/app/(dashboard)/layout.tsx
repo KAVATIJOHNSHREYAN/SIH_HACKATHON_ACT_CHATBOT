@@ -69,10 +69,13 @@ export default function DashboardLayout({
   }, []);
 
   const getInitials = (nameStr: string) => {
-    const parts = nameStr.trim().split(/\s+/);
-    if (parts.length === 0 || parts[0] === "") return "JD";
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    const trimmed = nameStr.trim();
+    if (!trimmed) return "??";
+    const parts = trimmed.split(/\s+/).filter(Boolean);
+    if (parts.length === 1) {
+      return parts[0].slice(0, 2);
+    }
+    return parts[0][0] + parts[parts.length - 1][0];
   };
 
   const [notifications, setNotifications] = useState([

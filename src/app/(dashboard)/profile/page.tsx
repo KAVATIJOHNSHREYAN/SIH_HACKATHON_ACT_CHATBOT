@@ -29,10 +29,15 @@ export default function ProfilePage() {
   };
 
   const getInitials = (nameStr: string) => {
-    const parts = nameStr.trim().split(/\s+/);
-    if (parts.length === 0 || parts[0] === "") return "JD";
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    const trimmed = nameStr.trim();
+    if (!trimmed) return "??";
+    const parts = trimmed.split(/\s+/).filter(Boolean);
+    if (parts.length === 1) {
+      // Single token: show first 2 characters as-is (letters, digits, symbols)
+      return parts[0].slice(0, 2);
+    }
+    // Multi-word: first char of first word + first char of last word
+    return parts[0][0] + parts[parts.length - 1][0];
   };
 
   return (
