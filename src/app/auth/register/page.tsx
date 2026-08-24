@@ -6,9 +6,12 @@ import { useRouter } from "next/navigation";
 import { Sparkles, Mail, Lock, User, Building, UserPlus, ArrowLeft } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
+import { useUser } from "@/contexts/UserContext";
+import { UserProfile } from "@/types/user";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { login } = useUser();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,10 +21,26 @@ export default function RegisterPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    const newUser: UserProfile = {
+      id: `user_${Date.now()}`,
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      organization: org.trim(),
+      role: "User",
+      plan: "Free",
+      bio: "",
+      createdAt: new Date().toISOString(),
+      lastLogin: new Date().toISOString(),
+      achievements: [],
+    };
+
+    login(newUser);
+
     setTimeout(() => {
       setLoading(false);
       router.push("/dashboard");
-    }, 1000);
+    }, 600);
   };
 
   return (
@@ -59,7 +78,7 @@ export default function RegisterPage() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="John Doe"
+                  placeholder="Your full name"
                   className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-950 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500 transition-colors"
                 />
               </div>
@@ -78,7 +97,7 @@ export default function RegisterPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="john@example.com"
+                  placeholder="you@example.com"
                   className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-950 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500 transition-colors"
                 />
               </div>
@@ -96,7 +115,7 @@ export default function RegisterPage() {
                   type="text"
                   value={org}
                   onChange={(e) => setOrg(e.target.value)}
-                  placeholder="Acme Corp"
+                  placeholder="Your organization (optional)"
                   className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-950 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500 transition-colors"
                 />
               </div>
@@ -122,7 +141,7 @@ export default function RegisterPage() {
             </div>
 
             <Button type="submit" className="w-full pt-3" disabled={loading}>
-              {loading ? "Registering..." : "Create Account"}
+              {loading ? "Creating account..." : "Create Account"}
               <UserPlus className="ml-2 h-4 w-4" />
             </Button>
           </form>

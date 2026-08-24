@@ -4,21 +4,61 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Sparkles, Mail, Lock, LogIn, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { useUser } from "@/contexts/UserContext";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useUser();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
+    setError("");
+
+    try {
+      const raw = localStorage.getItem("act_user");
+      if (raw) {
+        const stored = JSON.parse(raw);
+        // Match email (case-insensitive)
+        if (stored.email === email.trim().toLowerCase()) {
+          login({ ...stored });
+          setTimeout(() => {
+            setLoading(false);
+            router.push("/dashboard");
+          }, 600);
+          return;
+        } else {
+          setError("Email does not match the registered account.");
+          setLoading(false);
+          return;
+        }
+      }
+      // No account found — treat as first-time guest login
+      login({
+        id: `guest_${Date.now()}`,
+        name: email.split("@")[0],
+        email: email.trim().toLowerCase(),
+        organization: "",
+        role: "User",
+        plan: "Free",
+        bio: "",
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        achievements: [],
+      });
+      setTimeout(() => {
+        setLoading(false);
+        router.push("/dashboard");
+      }, 600);
+    } catch {
+      setError("Something went wrong. Please try again.");
       setLoading(false);
-      router.push("/dashboard");
-    }, 1000);
+    }
   };
 
   return (
@@ -143,6 +183,11 @@ export default function LoginPage() {
             </div>
 
             {/* Sign In Button */}
+            {error && (
+              <p className="text-xs text-red-600 font-medium text-center py-1 px-3 bg-red-50 rounded-lg border border-red-100">
+                {error}
+              </p>
+            )}
             <button
               type="submit"
               disabled={loading}

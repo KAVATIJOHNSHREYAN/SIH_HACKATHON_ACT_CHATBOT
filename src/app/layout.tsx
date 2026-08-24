@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { UserProvider } from "@/contexts/UserContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -61,7 +62,9 @@ export default function RootLayout({
           <img src="/logo.png" alt="ACT Watermark" className="w-[600px] h-[600px] object-contain max-w-[90vw]" />
         </div>
         <div className="relative z-10 flex-1 flex flex-col">
-          {children}
+          <UserProvider>
+            {children}
+          </UserProvider>
         </div>
       </body>
     </html>

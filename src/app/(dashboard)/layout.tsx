@@ -25,6 +25,7 @@ import {
   Cpu,
   Crown
 } from "lucide-react";
+import { useUser } from "@/contexts/UserContext";
 
 // Sidebar Navigation Configuration
 const NAVIGATION = [
@@ -48,35 +49,12 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { user, logout, getInitials, nameToColor } = useUser();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [activeModel, setActiveModel] = useState("ACT Pro");
-  const [profileName, setProfileName] = useState("John Doe");
-
-  React.useEffect(() => {
-    const updateProfile = () => {
-      if (typeof window !== "undefined") {
-        setProfileName(localStorage.getItem("user_profile_name") || "John Doe");
-      }
-    };
-    updateProfile();
-    window.addEventListener("profileUpdate", updateProfile);
-    return () => {
-      window.removeEventListener("profileUpdate", updateProfile);
-    };
-  }, []);
-
-  const getInitials = (nameStr: string) => {
-    const trimmed = nameStr.trim();
-    if (!trimmed) return "??";
-    const parts = trimmed.split(/\s+/).filter(Boolean);
-    if (parts.length === 1) {
-      return parts[0].slice(0, 2);
-    }
-    return parts[0][0] + parts[parts.length - 1][0];
-  };
 
   const [notifications, setNotifications] = useState([
     { id: 1, text: "Transformation complete: PDF → MCQ Notes", type: "success", time: "2m ago" },
@@ -85,6 +63,18 @@ export default function DashboardLayout({
   ]);
 
   const models = ["Gemini Pro", "GPT-4o", "Cohere Command A+", "Claude 3.5 Sonnet", "Mistral Large"];
+
+  // Derived user display values — always from real user, never hardcoded
+  const displayName = user?.name || "Guest";
+  const displayInitials = getInitials(displayName);
+  const displayPlan = user?.plan || "Free";
+  const displayRole = user?.role || "User";
+  const avatarColor = nameToColor(displayName);
+
+  const handleLogout = () => {
+    logout();
+    router.push("/");
+  };
 
   return (
     <div className="flex min-h-screen bg-gradient-mesh text-foreground" style={{ backgroundColor: '#f0faf0' }}>
@@ -136,17 +126,24 @@ export default function DashboardLayout({
 
         {/* Bottom user + plan */}
         <div className="p-4 border-t space-y-3" style={{ borderColor: '#bbf0bb' }}>
-          {/* Issues badge */}
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer" style={{ backgroundColor: '#dcfce7' }}>
-            <div className="h-6 w-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold" style={{ backgroundColor: '#22c55e' }}>N</div>
-            <span className="text-xs font-semibold" style={{ color: '#16a34a' }}>1 Issue</span>
-            <ChevronDown className="h-3 w-3 ml-auto" style={{ color: '#16a34a' }} />
+          {/* User badge */}
+          <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl" style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf0bb' }}>
+            <div
+              className="h-7 w-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
+              style={{ background: avatarColor }}
+            >
+              {displayInitials}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold truncate" style={{ color: '#0d2d0d' }}>{displayName}</p>
+              <p className="text-[10px] truncate" style={{ color: '#22c55e' }}>{displayRole}</p>
+            </div>
           </div>
           {/* Plan badge */}
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf0bb' }}>
             <Crown className="h-4 w-4" style={{ color: '#16a34a' }} />
             <div>
-              <p className="text-xs font-bold" style={{ color: '#0d2d0d' }}>ACT Pro Plan</p>
+              <p className="text-xs font-bold" style={{ color: '#0d2d0d' }}>ACT {displayPlan} Plan</p>
               <p className="text-[10px]" style={{ color: '#22c55e' }}>Active</p>
             </div>
           </div>
@@ -272,13 +269,22 @@ export default function DashboardLayout({
               <button
                 onClick={() => setProfileOpen(!profileOpen)}
                 className="h-8 w-8 rounded-xl flex items-center justify-center font-bold text-white text-xs"
-                style={{ background: 'linear-gradient(135deg, #16a34a, #22c55e)' }}
+                style={{ background: avatarColor }}
+                title={displayName}
               >
-                {getInitials(profileName)}
+                {displayInitials}
               </button>
 
               {profileOpen && (
-                <div className="absolute right-0 mt-2 w-48 rounded-xl shadow-2xl p-1.5 z-50" style={{ backgroundColor: '#ffffff', border: '1.5px solid #bbf0bb' }}>
+                <div className="absolute right-0 mt-2 w-52 rounded-xl shadow-2xl p-1.5 z-50" style={{ backgroundColor: '#ffffff', border: '1.5px solid #bbf0bb' }}>
+                  {/* User info header */}
+                  <div className="px-3 py-2 mb-1" style={{ borderBottom: '1px solid #bbf0bb' }}>
+                    <p className="text-xs font-bold truncate" style={{ color: '#0d2d0d' }}>{displayName}</p>
+                    <p className="text-[10px] truncate" style={{ color: '#22c55e' }}>{user?.email || ""}</p>
+                    <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase" style={{ backgroundColor: '#dcfce7', color: '#16a34a' }}>
+                      {displayRole}
+                    </span>
+                  </div>
                   <Link href="/profile" onClick={() => setProfileOpen(false)}
                     className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors"
                     style={{ color: '#0d2d0d' }}
@@ -298,15 +304,16 @@ export default function DashboardLayout({
                     Settings
                   </Link>
                   <div className="my-1" style={{ borderTop: '1px solid #bbf0bb' }} />
-                  <Link href="/"
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors"
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors"
                     style={{ color: '#dc2626' }}
                     onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = '#fef2f2'}
                     onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'}
                   >
                     <LogOut className="h-3.5 w-3.5" />
                     Logout
-                  </Link>
+                  </button>
                 </div>
               )}
             </div>
@@ -352,6 +359,22 @@ export default function DashboardLayout({
                 );
               })}
             </nav>
+
+            {/* Mobile bottom user info */}
+            <div className="pt-4 mt-4" style={{ borderTop: '1px solid #bbf0bb' }}>
+              <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl" style={{ backgroundColor: '#f0fdf4' }}>
+                <div
+                  className="h-7 w-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
+                  style={{ background: avatarColor }}
+                >
+                  {displayInitials}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold truncate" style={{ color: '#0d2d0d' }}>{displayName}</p>
+                  <p className="text-[10px]" style={{ color: '#22c55e' }}>{displayRole}</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
