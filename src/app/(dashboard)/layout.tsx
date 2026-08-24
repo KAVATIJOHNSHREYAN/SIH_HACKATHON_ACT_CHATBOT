@@ -53,6 +53,27 @@ export default function DashboardLayout({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [activeModel, setActiveModel] = useState("ACT Pro");
+  const [profileName, setProfileName] = useState("John Doe");
+
+  React.useEffect(() => {
+    const updateProfile = () => {
+      if (typeof window !== "undefined") {
+        setProfileName(localStorage.getItem("user_profile_name") || "John Doe");
+      }
+    };
+    updateProfile();
+    window.addEventListener("profileUpdate", updateProfile);
+    return () => {
+      window.removeEventListener("profileUpdate", updateProfile);
+    };
+  }, []);
+
+  const getInitials = (nameStr: string) => {
+    const parts = nameStr.trim().split(/\s+/);
+    if (parts.length === 0 || parts[0] === "") return "JD";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
 
   const [notifications, setNotifications] = useState([
     { id: 1, text: "Transformation complete: PDF → MCQ Notes", type: "success", time: "2m ago" },
@@ -250,7 +271,7 @@ export default function DashboardLayout({
                 className="h-8 w-8 rounded-xl flex items-center justify-center font-bold text-white text-xs"
                 style={{ background: 'linear-gradient(135deg, #16a34a, #22c55e)' }}
               >
-                JD
+                {getInitials(profileName)}
               </button>
 
               {profileOpen && (
