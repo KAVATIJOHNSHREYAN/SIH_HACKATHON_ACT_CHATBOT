@@ -15,6 +15,7 @@ export interface UserProfile {
   role: UserRole;
   plan: UserPlan;
   bio: string;
+  avatar?: string;          // base64 data URL or empty
   createdAt: string;
   lastLogin: string;
   achievements: UserAchievement[];

@@ -70,6 +70,7 @@ export default function DashboardLayout({
   const displayPlan = user?.plan || "Free";
   const displayRole = user?.role || "User";
   const avatarColor = nameToColor(displayName);
+  const avatarUrl = user?.avatar || "";
 
   const handleLogout = () => {
     logout();
@@ -128,11 +129,11 @@ export default function DashboardLayout({
         <div className="p-4 border-t space-y-3" style={{ borderColor: '#bbf0bb' }}>
           {/* User badge */}
           <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl" style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf0bb' }}>
-            <div
-              className="h-7 w-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-              style={{ background: avatarColor }}
-            >
-              {displayInitials}
+            <div className="h-7 w-7 rounded-full shrink-0 overflow-hidden flex items-center justify-center text-white text-[10px] font-bold" style={{ background: avatarUrl ? 'transparent' : avatarColor }}>
+              {avatarUrl
+                ? <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                : displayInitials
+              }
             </div>
             <div className="min-w-0">
               <p className="text-xs font-bold truncate" style={{ color: '#0d2d0d' }}>{displayName}</p>
@@ -268,11 +269,14 @@ export default function DashboardLayout({
             <div className="relative">
               <button
                 onClick={() => setProfileOpen(!profileOpen)}
-                className="h-8 w-8 rounded-xl flex items-center justify-center font-bold text-white text-xs"
-                style={{ background: avatarColor }}
+                className="h-8 w-8 rounded-xl overflow-hidden flex items-center justify-center font-bold text-white text-xs"
+                style={{ background: avatarUrl ? 'transparent' : avatarColor }}
                 title={displayName}
               >
-                {displayInitials}
+                {avatarUrl
+                  ? <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                  : displayInitials
+                }
               </button>
 
               {profileOpen && (
@@ -363,11 +367,11 @@ export default function DashboardLayout({
             {/* Mobile bottom user info */}
             <div className="pt-4 mt-4" style={{ borderTop: '1px solid #bbf0bb' }}>
               <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl" style={{ backgroundColor: '#f0fdf4' }}>
-                <div
-                  className="h-7 w-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-                  style={{ background: avatarColor }}
-                >
-                  {displayInitials}
+                <div className="h-7 w-7 rounded-full shrink-0 overflow-hidden flex items-center justify-center text-white text-[10px] font-bold" style={{ background: avatarUrl ? 'transparent' : avatarColor }}>
+                  {avatarUrl
+                    ? <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                    : displayInitials
+                  }
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-bold truncate" style={{ color: '#0d2d0d' }}>{displayName}</p>
