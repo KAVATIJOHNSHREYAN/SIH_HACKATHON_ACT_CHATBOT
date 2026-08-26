@@ -238,5 +238,89 @@ aside, header, nav, main, .glass-panel {
   color: #e2e8f0 !important;
 }
 
+/* ── Dark Theme Dashboard Elements Overrides ─────────────────────────────── */
+/* 1. Welcome Banner background & border */
+.dark-theme [style*="linear-gradient(135deg, #f0fdf4 0%, #dcfce7 60%, #bbf7d0 100%)"],
+.dark-theme [style*="linear-gradient(135deg, rgb(240, 253, 244) 0%, rgb(220, 252, 231) 60%, rgb(187, 247, 208) 100%)"] {
+  background: linear-gradient(135deg, #0b1628 0%, #0f1e35 100%) !important;
+  border-color: #1a3a6e !important;
+  box-shadow: 0 4px 32px rgba(59, 130, 246, 0.15) !important;
+}
+
+/* 2. Welcome Banner text colors (nested inside style-colored spans/headers) */
+.dark-theme [style*="color: #0d2d0d"],
+.dark-theme [style*="color: rgb(13, 45, 13)"] {
+  color: #ffffff !important;
+}
+.dark-theme [style*="color: #4b7a4b"],
+.dark-theme [style*="color: rgb(75, 122, 75)"] {
+  color: #e2e8f0 !important;
+}
+.dark-theme [style*="color: #16a34a"],
+.dark-theme [style*="color: rgb(22, 163, 74)"] {
+  color: #60a5fa !important;
+}
+
+/* 3. New Transformation Banner Button */
+.dark-theme [style*="linear-gradient(135deg, #16a34a, #22c55e)"],
+.dark-theme [style*="linear-gradient(135deg, rgb(22, 163, 74), rgb(34, 197, 94))"] {
+  background: linear-gradient(135deg, #2563eb, #3b82f6) !important;
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.3) !important;
+}
+
+/* 4. White Stats Cards, Workspace Cards, and Ledger Cards */
+.dark-theme [style*="background-color: #ffffff"],
+.dark-theme [style*="background-color: rgb(255, 255, 255)"],
+.dark-theme [style*="background-color: white"] {
+  background-color: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: 0 2px 12px rgba(59, 130, 246, 0.05) !important;
+}
+
+/* 5. Light green sub-badges & icon circles */
+.dark-theme [style*="background-color: #dcfce7"],
+.dark-theme [style*="background-color: rgb(220, 252, 231)"] {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  color: #60a5fa !important;
+}
+.dark-theme [style*="background-color: #dcfce7"] *,
+.dark-theme [style*="background-color: rgb(220, 252, 231)"] * {
+  color: #60a5fa !important;
+}
+
+/* 6. Muted text inside stats cards / ledger subtext */
+.dark-theme [style*="color: #86efac"],
+.dark-theme [style*="color: rgb(134, 239, 172)"] {
+  color: #94a3b8 !important;
+}
+
+/* 7. Ledger table border colors & hover background */
+.dark-theme [style*="border-bottom: 1px solid #dcfce7"],
+.dark-theme [style*="border-bottom: 1px solid #f0fdf4"],
+.dark-theme [style*="border-bottom: 1px solid rgb(240, 253, 244)"] {
+  border-bottom-color: var(--border-color) !important;
+}
+.dark-theme [style*="border-bottom: 1px solid #bbf0bb"],
+.dark-theme [style*="border-bottom: 1.5px solid #bbf0bb"] {
+  border-bottom-color: var(--border-color) !important;
+}
+.dark-theme [style*="border-bottom: 1px solid #dcfce7"] *,
+.dark-theme [style*="border-bottom: 1px solid #f0fdf4"] * {
+  border-bottom-color: var(--border-color) !important;
+}
+
+/* Ledger table row hover */
+.dark-theme tr[style*="border-bottom"]:hover {
+  background-color: rgba(59, 130, 246, 0.05) !important;
+}
+
+/* 8. Ledger "View Full History" Button */
+.dark-theme [style*="border: 1.5px solid #22c55e"],
+.dark-theme [style*="border: 1.5px solid rgb(34, 197, 94)"] {
+  border-color: #3b82f6 !important;
+  color: #60a5fa !important;
+}
+
+
 
 
