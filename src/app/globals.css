@@ -14,8 +14,8 @@
   --primary-muted: #86efac;
   --primary-subtle:#f0fdf4;
   --primary-glow:  rgba(34, 197, 94, 0.25);
-  --text-primary:  #0d2d0d;
-  --text-secondary:#4b7a4b;
+  --text-primary:  #111111;
+  --text-secondary:#2d2d2d;
   --scrollbar-track: #f0fdf4;
   --scrollbar-thumb: #86efac;
   --scrollbar-thumb-hover: #22c55e;
@@ -27,7 +27,7 @@
 /* ── Dark Blue Theme ─────────────────────────────────────────────────────── */
 .dark-theme {
   --background:    #060d1a;
-  --foreground:    #e2e8f0;
+  --foreground:    #ffffff;
   --sidebar-bg:    #0b1628;
   --card-bg:       #0f1e35;
   --border-color:  #1a3a6e;
@@ -37,8 +37,8 @@
   --primary-muted: #60a5fa;
   --primary-subtle:#0e1c33;
   --primary-glow:  rgba(59, 130, 246, 0.25);
-  --text-primary:  #e2e8f0;
-  --text-secondary:#93b4d4;
+  --text-primary:  #ffffff;
+  --text-secondary:#e2e8f0;
   --scrollbar-track: #0b1628;
   --scrollbar-thumb: #1e3a6e;
   --scrollbar-thumb-hover: #3b82f6;
