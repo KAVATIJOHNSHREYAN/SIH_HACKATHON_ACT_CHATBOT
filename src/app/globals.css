@@ -144,7 +144,6 @@ aside, header, nav, main, .glass-panel {
 }
 
 .dark-theme p,
-.dark-theme span,
 .dark-theme td,
 .dark-theme th,
 .dark-theme label,
@@ -156,6 +155,45 @@ aside, header, nav, main, .glass-panel {
 .dark-theme .text-slate-400 {
   color: #ffffff !important;
 }
+
+/* ── Badge & Tag Overrides for Dark Theme ────────────────────────────────── */
+/* Light Green badges (e.g., USER role, Active plan) */
+.dark-theme [style*="background-color: #f0fdf4"],
+.dark-theme [style*="background-color: rgb(240, 253, 244)"],
+.dark-theme .bg-green-50 {
+  background-color: rgba(34, 197, 94, 0.15) !important;
+  border-color: rgba(34, 197, 94, 0.3) !important;
+  color: #4ade80 !important;
+}
+.dark-theme [style*="background-color: #f0fdf4"] *,
+.dark-theme [style*="background-color: rgb(240, 253, 244)"] * {
+  color: #4ade80 !important;
+}
+
+/* Light Yellow/Amber badges (e.g., Admin/Super Admin role) */
+.dark-theme [style*="background-color: #fef3c7"],
+.dark-theme [style*="background-color: rgb(254, 243, 199)"] {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+  color: #fbbf24 !important;
+}
+.dark-theme [style*="background-color: #fef3c7"] *,
+.dark-theme [style*="background-color: rgb(254, 243, 199)"] * {
+  color: #fbbf24 !important;
+}
+
+/* Light Purple active template tags (e.g., Business template active state) */
+.dark-theme .bg-purple-50,
+.dark-theme [style*="background-color: #faf5ff"],
+.dark-theme [style*="background-color: rgb(250, 245, 255)"] {
+  background-color: rgba(168, 85, 247, 0.2) !important;
+  border-color: rgba(168, 85, 247, 0.4) !important;
+  color: #c084fc !important;
+}
+.dark-theme .bg-purple-50 * {
+  color: #c084fc !important;
+}
+
 
 .dark-theme .bg-white {
   background-color: var(--card-bg) !important;
