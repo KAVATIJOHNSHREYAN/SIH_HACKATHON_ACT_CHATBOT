@@ -93,6 +93,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 key={item.name}
                 href={item.href}
+                data-active={isActive}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
                 style={isActive
                   ? { backgroundColor: T.bgActive, color: T.textActive, fontWeight: 600 }
@@ -352,6 +353,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <Link
                     key={item.name}
                     href={item.href}
+                    data-active={isActive}
                     onClick={() => setMobileMenuOpen(false)}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
                     style={isActive ? { backgroundColor: T.bgActive, color: T.textActive } : { color: T.textSecondary }}

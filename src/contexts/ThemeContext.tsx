@@ -61,11 +61,11 @@ export const LIGHT = {
   borderHover:  "#22c55e",
   primary:      "#16a34a",
   primaryBright:"#22c55e",
-  primaryMuted: "#86efac",
-  textPrimary:  "#0d2d0d",
-  textSecondary:"#4b7a4b",
-  textMuted:    "#86efac",
-  textActive:   "#16a34a",
+  primaryMuted: "#4b8c5a",
+  textPrimary:  "#111111",      // near-black — strong dark font
+  textSecondary:"#2d2d2d",      // dark grey — readable on white
+  textMuted:    "#555555",      // medium grey for hints
+  textActive:   "#15803d",      // dark green for active nav
   navDot:       "#22c55e",
   scrollTrack:  "#f0fdf4",
   scrollThumb:  "#86efac",
@@ -80,19 +80,19 @@ export const DARK = {
   bgSidebar:    "#0b1628",
   bgHeader:     "#0b1628",
   bgCard:       "#0f1e35",
-  bgActive:     "rgba(59,130,246,0.14)",
-  bgHover:      "rgba(59,130,246,0.07)",
+  bgActive:     "rgba(59,130,246,0.18)",
+  bgHover:      "rgba(59,130,246,0.08)",
   bgBadge:      "rgba(59,130,246,0.18)",
   bgInput:      "#0e1c33",
   border:       "#1a3a6e",
   borderHover:  "#3b82f6",
   primary:      "#2563eb",
-  primaryBright:"#3b82f6",
-  primaryMuted: "#60a5fa",
-  textPrimary:  "#e2e8f0",
-  textSecondary:"#93b4d4",
-  textMuted:    "#4a6fa8",
-  textActive:   "#60a5fa",
+  primaryBright:"#60a5fa",
+  primaryMuted: "#93c5fd",
+  textPrimary:  "#ffffff",      // pure white — bright font on dark
+  textSecondary:"#e2e8f0",      // bright off-white for secondary text
+  textMuted:    "#94a3b8",      // light slate for muted hints
+  textActive:   "#93c5fd",      // bright blue for active nav
   navDot:       "#3b82f6",
   scrollTrack:  "#0b1628",
   scrollThumb:  "#1e3a6e",

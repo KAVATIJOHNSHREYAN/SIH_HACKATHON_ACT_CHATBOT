@@ -50,6 +50,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border-color: var(--border-color);
+  --color-card-bg: var(--card-bg);
 }
 
 body {
@@ -120,3 +124,72 @@ body {
 aside, header, nav, main, .glass-panel {
   transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
 }
+
+/* ── Dark Theme Overrides for Text & Controls ────────────────────────────── */
+.dark-theme h1,
+.dark-theme h2,
+.dark-theme h3,
+.dark-theme h4,
+.dark-theme .text-slate-900,
+.dark-theme .text-slate-855,
+.dark-theme .text-slate-800,
+.dark-theme .text-slate-700,
+.dark-theme .text-slate-800,
+.dark-theme .font-semibold,
+.dark-theme .font-bold {
+  color: #ffffff !important;
+}
+
+.dark-theme p,
+.dark-theme span,
+.dark-theme td,
+.dark-theme th,
+.dark-theme .text-slate-600,
+.dark-theme .text-slate-500,
+.dark-theme .text-slate-400 {
+  color: #e2e8f0 !important;
+}
+
+.dark-theme .bg-white {
+  background-color: var(--card-bg) !important;
+}
+
+.dark-theme .bg-slate-50 {
+  background-color: #0c1524 !important;
+}
+
+.dark-theme .border-slate-200,
+.dark-theme .border-slate-100,
+.dark-theme .divide-slate-100 {
+  border-color: var(--border-color) !important;
+}
+
+.dark-theme .text-cyan-700 {
+  color: #60a5fa !important;
+}
+
+.dark-theme a {
+  color: #e2e8f0 !important;
+}
+
+.dark-theme a:hover {
+  color: #93c5fd !important;
+}
+
+.dark-theme aside a {
+  color: #e2e8f0 !important;
+}
+
+.dark-theme aside a[data-active="true"] {
+  color: #93c5fd !important;
+}
+
+.dark-theme aside a[data-active="true"] svg {
+  color: #3b82f6 !important;
+}
+
+.dark-theme aside a svg {
+  color: #94a3b8 !important;
+}
+
+
