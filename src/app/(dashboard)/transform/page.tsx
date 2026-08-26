@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useRef } from "react";
+import Link from "next/link";
+
 import { 
   UploadCloud, 
   RefreshCw, 
@@ -15,7 +17,9 @@ import {
   AlertCircle,
   FileCheck,
   ChevronRight,
-  BookOpen
+  BookOpen,
+  Cpu,
+  Volume2
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
@@ -248,6 +252,70 @@ export default function TransformPage() {
           Transform documents, audios, or text into summaries, tables, templates, or FAQs based on real-time inputs.
         </p>
       </div>
+
+      {/* Specialized Pipelines Quick Navigation */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Link href="/transform/audio">
+          <div 
+            className="p-4 rounded-2xl border transition-all hover:scale-[1.02] flex items-center gap-3 cursor-pointer shadow-sm"
+            style={{ backgroundColor: T.bgCard, borderColor: T.border }}
+          >
+            <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
+              <Volume2 className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold" style={{ color: T.textPrimary }}>Audio & Voice</p>
+              <p className="text-[9px]" style={{ color: T.textSecondary }}>Transcribe & Record</p>
+            </div>
+          </div>
+        </Link>
+
+        <Link href="/transform/ocr">
+          <div 
+            className="p-4 rounded-2xl border transition-all hover:scale-[1.02] flex items-center gap-3 cursor-pointer shadow-sm"
+            style={{ backgroundColor: T.bgCard, borderColor: T.border }}
+          >
+            <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
+              <FileCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold" style={{ color: T.textPrimary }}>OCR Scanner</p>
+              <p className="text-[9px]" style={{ color: T.textSecondary }}>Scan text from images</p>
+            </div>
+          </div>
+        </Link>
+
+        <Link href="/transform/pdf">
+          <div 
+            className="p-4 rounded-2xl border transition-all hover:scale-[1.02] flex items-center gap-3 cursor-pointer shadow-sm"
+            style={{ backgroundColor: T.bgCard, borderColor: T.border }}
+          >
+            <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
+              <FileText className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold" style={{ color: T.textPrimary }}>PDF Pipeline</p>
+              <p className="text-[9px]" style={{ color: T.textSecondary }}>Structure & Parse PDFs</p>
+            </div>
+          </div>
+        </Link>
+
+        <Link href="/transform/video">
+          <div 
+            className="p-4 rounded-2xl border transition-all hover:scale-[1.02] flex items-center gap-3 cursor-pointer shadow-sm"
+            style={{ backgroundColor: T.bgCard, borderColor: T.border }}
+          >
+            <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
+              <Cpu className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold" style={{ color: T.textPrimary }}>Video Transform</p>
+              <p className="text-[9px]" style={{ color: T.textSecondary }}>Summarize & Index</p>
+            </div>
+          </div>
+        </Link>
+      </div>
+
 
       {errorMsg && (
         <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs flex items-center gap-2.5 shadow-sm">
