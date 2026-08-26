@@ -20,6 +20,7 @@ import {
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
 import { ApiClient } from "@/lib/apiClient";
+import { useTheme, LIGHT, DARK } from "@/contexts/ThemeContext";
 
 const TARGET_FORMATS = [
   { group: "Summaries & Docs", formats: ["Summary", "Detailed Summary", "Article", "Blog", "Notes", "Meeting Minutes", "Research Summary"] },
@@ -29,6 +30,9 @@ const TARGET_FORMATS = [
 ];
 
 export default function TransformPage() {
+  const { isDark } = useTheme();
+  const T = isDark ? DARK : LIGHT;
+
   const [sourceType, setSourceType] = useState<"file" | "text">("file");
   const [inputText, setInputText] = useState("");
   
@@ -102,7 +106,7 @@ export default function TransformPage() {
         setFileContent("");
       };
       reader.onerror = () => {
-        setErrorMsg("Failed to read binary file stream.");
+        setErrorMsg("Failed to read binary stream.");
       };
       reader.readAsDataURL(file);
     }
@@ -122,19 +126,25 @@ export default function TransformPage() {
     setFileContent("");
     setSelectedFileBase64("");
     resetForm();
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const handleTransform = async () => {
-    const hasInput = sourceType === "file" ? (selectedFileBase64 || fileContent) : inputText;
-
-    if (!hasInput) {
-      setErrorMsg("Please upload a file or paste content to transform.");
+    // Basic validation
+    if (sourceType === "file" && !selectedFile) {
+      setErrorMsg("Please upload a source file first.");
+      return;
+    }
+    if (sourceType === "text" && !inputText.trim()) {
+      setErrorMsg("Please paste or write some raw text first.");
       return;
     }
 
     setErrorMsg("");
     setStatus("uploading");
-    setStage("Uploading source stream...");
+    setStage("1. Uploading source...");
     setProgress(15);
 
     try {
@@ -198,12 +208,12 @@ export default function TransformPage() {
       const historyStr = localStorage.getItem("act_transform_history") || "[]";
       const history = JSON.parse(historyStr);
       const newJob = {
-        id: Math.random(),
+        id: Date.now(),
         file: item.file,
         action: item.action,
-        date: new Date().toISOString().split('T')[0],
+        date: new Date().toISOString().split("T")[0],
         tokens: item.tokens.toString(),
-        status: "Completed",
+        status: "Completed"
       };
       localStorage.setItem("act_transform_history", JSON.stringify([newJob, ...history]));
     }
@@ -231,8 +241,12 @@ export default function TransformPage() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">ACT Content Transformation</h1>
-        <p className="text-slate-600 text-xs mt-1">Transform documents, audios, or text into summaries, tables, templates, or FAQs based on real-time inputs.</p>
+        <h1 className="text-2xl font-bold tracking-tight" style={{ color: T.textPrimary }}>
+          ACT Content Transformation
+        </h1>
+        <p className="text-xs mt-1" style={{ color: T.textSecondary }}>
+          Transform documents, audios, or text into summaries, tables, templates, or FAQs based on real-time inputs.
+        </p>
       </div>
 
       {errorMsg && (
@@ -243,31 +257,36 @@ export default function TransformPage() {
       )}
 
       <div className="grid lg:grid-cols-12 gap-8 items-start">
+        
         {/* Left Input Configuration Card */}
         <div className="lg:col-span-5 space-y-6">
-          <GlassCard className="border-slate-200 bg-white shadow-sm space-y-6">
-            <h2 className="text-base font-bold text-slate-855 tracking-tight flex items-center gap-2" style={{ color: '#0d2d0d' }}>
+          <GlassCard className="border-slate-200 bg-white shadow-sm space-y-6" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+            <h2 className="text-base font-bold tracking-tight flex items-center gap-2" style={{ color: T.textPrimary }}>
               <Settings className="h-4.5 w-4.5 text-purple-600" />
               1. Source Configuration
             </h2>
 
             {/* Input Selection Tabs */}
-            <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+            <div className="flex rounded-xl p-1 border" style={{ backgroundColor: T.bgInput, borderColor: T.border }}>
               <button
                 type="button"
                 onClick={() => { setSourceType("file"); resetForm(); }}
-                className={`flex-1 text-center py-2 rounded-lg text-xs font-semibold transition-all ${
-                  sourceType === "file" ? "bg-white border border-slate-250 text-purple-700 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                }`}
+                className={`flex-1 text-center py-2 rounded-lg text-xs font-semibold transition-all`}
+                style={{
+                  backgroundColor: sourceType === "file" ? T.bgActive : "transparent",
+                  color: sourceType === "file" ? T.textActive : T.textSecondary
+                }}
               >
                 File Upload
               </button>
               <button
                 type="button"
                 onClick={() => { setSourceType("text"); resetForm(); }}
-                className={`flex-1 text-center py-2 rounded-lg text-xs font-semibold transition-all ${
-                  sourceType === "text" ? "bg-white border border-slate-250 text-purple-700 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                }`}
+                className={`flex-1 text-center py-2 rounded-lg text-xs font-semibold transition-all`}
+                style={{
+                  backgroundColor: sourceType === "text" ? T.bgActive : "transparent",
+                  color: sourceType === "text" ? T.textActive : T.textSecondary
+                }}
               >
                 Raw Text Paste
               </button>
@@ -287,18 +306,28 @@ export default function TransformPage() {
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={handleFileDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-slate-200 hover:border-purple-300 rounded-2xl p-8 text-center cursor-pointer bg-slate-50 hover:bg-slate-100/50 transition-all group relative shadow-sm"
+                  className="border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all group relative shadow-sm"
+                  style={{
+                    backgroundColor: T.bgInput,
+                    borderColor: T.border
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = T.primaryBright}
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor = T.border}
                 >
                   {selectedFile ? (
                     <div className="space-y-3">
                       <FileCheck className="h-10 w-10 text-purple-600 mx-auto animate-bounce" />
                       <div className="space-y-1">
-                        <p className="text-xs font-semibold text-slate-800 truncate max-w-xs mx-auto">{selectedFile.name}</p>
-                        <p className="text-[10px] text-slate-500">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                        <p className="text-xs font-semibold truncate max-w-xs mx-auto" style={{ color: T.textPrimary }}>
+                          {selectedFile.name}
+                        </p>
+                        <p className="text-[10px]" style={{ color: T.textSecondary }}>
+                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
                       </div>
                       <button 
                         onClick={removeFile}
-                        className="text-[10px] text-red-650 hover:text-red-700 font-semibold px-2.5 py-1 rounded-xl bg-red-50 border border-red-200 shadow-sm transition-all"
+                        className="text-[10px] text-red-655 hover:text-red-700 font-semibold px-2.5 py-1 rounded-xl bg-red-50 border border-red-200 shadow-sm transition-all"
                       >
                         Remove File
                       </button>
@@ -306,8 +335,12 @@ export default function TransformPage() {
                   ) : (
                     <div>
                       <UploadCloud className="h-10 w-10 text-slate-400 group-hover:text-purple-600 transition-colors mx-auto mb-4" />
-                      <p className="text-xs font-semibold text-slate-700">Drag and drop file here, or click to upload</p>
-                      <p className="text-[10px] text-slate-400 mt-1">Supports PDF, DOCX, TXT, CSV, JSON, PNG, JPG, MP3 (Max 50MB)</p>
+                      <p className="text-xs font-semibold text-slate-700" style={{ color: T.textPrimary }}>
+                        Drag and drop file here, or click to upload
+                      </p>
+                      <p className="text-[10px] mt-1" style={{ color: T.textSecondary }}>
+                        Supports PDF, DOCX, TXT, CSV, JSON, PNG, JPG, MP3 (Max 50MB)
+                      </p>
                     </div>
                   )}
                 </div>
@@ -320,7 +353,8 @@ export default function TransformPage() {
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     placeholder="Paste or type the raw content you wish to convert..."
-                    className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-purple-500 transition-colors leading-relaxed shadow-sm"
+                    className="w-full px-4 py-3 rounded-xl text-xs focus:outline-none focus:border-purple-500 transition-colors leading-relaxed shadow-sm"
+                    style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
                   />
                   {inputText && (
                     <button
@@ -331,7 +365,7 @@ export default function TransformPage() {
                     </button>
                   )}
                 </div>
-                <div className="flex justify-between items-center text-[10px] text-slate-400 px-1">
+                <div className="flex justify-between items-center text-[10px] px-1" style={{ color: T.textSecondary }}>
                   <span>Words: {wordCount}</span>
                   <span>Characters: {charCount}</span>
                 </div>
@@ -340,18 +374,19 @@ export default function TransformPage() {
 
             {/* Target Select */}
             <div className="space-y-3.5 pt-2">
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+              <label className="block text-xs font-semibold uppercase tracking-wide" style={{ color: T.textSecondary }}>
                 2. Target Output Format
               </label>
               <select
                 value={targetFormat}
                 onChange={(e) => { setTargetFormat(e.target.value); resetForm(); }}
-                className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs focus:outline-none focus:border-purple-500 cursor-pointer shadow-sm font-semibold"
+                className="w-full px-4 py-3 rounded-xl text-xs focus:outline-none focus:border-purple-500 cursor-pointer shadow-sm font-semibold"
+                style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
               >
                 {TARGET_FORMATS.map((group) => (
-                  <optgroup key={group.group} label={group.group} className="bg-white text-slate-800 text-xs">
+                  <optgroup key={group.group} label={group.group} className="text-xs" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>
                     {group.formats.map((fmt) => (
-                      <option key={fmt} value={fmt} className="text-slate-700 font-medium">
+                      <option key={fmt} value={fmt} className="font-medium" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>
                         {fmt}
                       </option>
                     ))}
@@ -362,18 +397,19 @@ export default function TransformPage() {
 
             {/* AI Model selection */}
             <div className="space-y-3.5">
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+              <label className="block text-xs font-semibold uppercase tracking-wide" style={{ color: T.textSecondary }}>
                 3. Transformation Model
               </label>
               <select
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs focus:outline-none focus:border-purple-500 cursor-pointer shadow-sm font-semibold"
+                className="w-full px-4 py-3 rounded-xl text-xs focus:outline-none focus:border-purple-500 cursor-pointer shadow-sm font-semibold"
+                style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
               >
-                <option value="Gemini Pro">Gemini Pro</option>
-                <option value="GPT-4o">GPT-4o</option>
-                <option value="Cohere">Cohere Command R+</option>
-                <option value="Claude 3.5 Sonnet">Claude 3.5 Sonnet</option>
+                <option value="Gemini Pro" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>Gemini Pro</option>
+                <option value="GPT-4o" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>GPT-4o</option>
+                <option value="Cohere" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>Cohere Command R+</option>
+                <option value="Claude 3.5 Sonnet" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>Claude 3.5 Sonnet</option>
               </select>
             </div>
 
@@ -389,9 +425,9 @@ export default function TransformPage() {
                   <span className="text-purple-600 font-bold uppercase tracking-wider animate-pulse">
                     {stage}
                   </span>
-                  <span className="text-slate-500 font-medium">{progress}%</span>
+                  <span className="text-slate-500 font-medium" style={{ color: T.textSecondary }}>{progress}%</span>
                 </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200 shadow-inner">
+                <div className="w-full h-2 rounded-full overflow-hidden border shadow-inner" style={{ backgroundColor: T.bgInput, borderColor: T.border }}>
                   <div
                     className="bg-gradient-to-r from-purple-500 to-emerald-500 h-full rounded-full transition-all duration-300"
                     style={{ width: `${progress}%` }}
@@ -410,9 +446,9 @@ export default function TransformPage() {
 
         {/* Right Output Preview Card */}
         <div className="lg:col-span-7">
-          <GlassCard className="border-slate-200 bg-white shadow-sm min-h-[500px] flex flex-col p-0 overflow-hidden">
-            <div className="border-b border-slate-100 px-6 py-4 bg-slate-50 flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+          <GlassCard className="border-slate-200 bg-white shadow-sm min-h-[500px] flex flex-col p-0 overflow-hidden" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+            <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: T.border, backgroundColor: T.bgInput }}>
+              <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: T.textPrimary }}>
                 <FileCode className="h-4 w-4 text-purple-600" />
                 Transformation Output Preview
               </span>
@@ -438,20 +474,20 @@ export default function TransformPage() {
             </div>
 
             {status === "done" && outputPreview ? (
-              <div className="p-6 flex-1 flex flex-col justify-between bg-slate-50/20">
-                <div className="text-xs text-slate-800 font-mono whitespace-pre-wrap leading-relaxed flex-1 prose max-w-none">
+              <div className="p-6 flex-1 flex flex-col justify-between">
+                <div className="text-xs font-mono whitespace-pre-wrap leading-relaxed flex-1 prose max-w-none" style={{ color: T.textPrimary }}>
                   {outputPreview}
                 </div>
-                <div className="border-t border-slate-100 pt-4 mt-6 flex justify-between items-center text-[10px] text-slate-500">
+                <div className="border-t pt-4 mt-6 flex justify-between items-center text-[10px]" style={{ borderColor: T.border, color: T.textSecondary }}>
                   <span>Output generated successfully via ACT engine ({selectedModel})</span>
                   <span>Timestamp: {new Date().toLocaleTimeString()}</span>
                 </div>
               </div>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-slate-50/10">
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
                 <BookOpen className="h-10 w-10 text-slate-400 mb-4 animate-pulse" />
-                <p className="text-sm font-semibold text-slate-700">Transform Console Empty</p>
-                <p className="text-xs text-slate-400 max-w-sm mt-1">
+                <p className="text-sm font-semibold" style={{ color: T.textPrimary }}>Transform Console Empty</p>
+                <p className="text-xs max-w-sm mt-1" style={{ color: T.textSecondary }}>
                   Upload a document or paste raw text on the left configuration panel, then trigger ACT to output compilations.
                 </p>
               </div>
