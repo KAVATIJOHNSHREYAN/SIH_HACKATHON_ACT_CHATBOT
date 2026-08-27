@@ -32,6 +32,7 @@ interface SpeechRecognition {
   onend: () => void;
   start: () => void;
   stop: () => void;
+  abort: () => void;
 }
 
 export default function AudioTransformPage() {
@@ -160,6 +161,7 @@ export default function AudioTransformPage() {
         rec.lang = "en-US";
 
         rec.onresult = (event: SpeechRecognitionEvent) => {
+          if (!isRecordingRef.current) return;
           let finalTranscript = "";
           for (let i = 0; i < event.results.length; i++) {
             if (event.results[i][0]) {
@@ -195,7 +197,7 @@ export default function AudioTransformPage() {
       setIsRecording(false);
       
       if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch (e) {}
+        try { recognitionRef.current.abort(); } catch (e) {}
       }
     }
   };
