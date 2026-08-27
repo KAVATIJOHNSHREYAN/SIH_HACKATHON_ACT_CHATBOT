@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Sparkles, Mail, Lock, LogIn, ArrowLeft, Eye, EyeOff, Fingerprint, ScanFace } from "lucide-react";
+import { Sparkles, Mail, Lock, LogIn, ArrowLeft, Eye, EyeOff, Fingerprint, ScanFace, Laptop } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
 import { useUser } from "@/contexts/UserContext";
@@ -386,11 +386,11 @@ export default function LoginPage() {
             <p className="text-[10px] text-center uppercase tracking-wider font-semibold mb-2" style={{ color: descColor }}>
               Secure Device Sign In
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-1.5">
               <button
                 type="button"
                 onClick={() => handleBiometricLogin("fingerprint")}
-                className="py-2.5 rounded-xl border flex items-center justify-center gap-2 text-xs font-semibold transition-all hover:bg-slate-100/5"
+                className="py-2.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 text-[10px] font-semibold transition-all hover:bg-slate-100/5"
                 style={{ backgroundColor: inputBg, borderColor: inputBorder, color: inputColor }}
               >
                 <Fingerprint className="h-4 w-4 text-purple-400" />
@@ -399,11 +399,21 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => handleBiometricLogin("face")}
-                className="py-2.5 rounded-xl border flex items-center justify-center gap-2 text-xs font-semibold transition-all hover:bg-slate-100/5"
+                className="py-2.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 text-[10px] font-semibold transition-all hover:bg-slate-100/5"
                 style={{ backgroundColor: inputBg, borderColor: inputBorder, color: inputColor }}
               >
                 <ScanFace className="h-4 w-4 text-cyan-400" />
                 Face ID
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBiometricLogin("face")}
+                className="py-2.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 text-[10px] font-semibold transition-all hover:bg-slate-100/5"
+                style={{ backgroundColor: inputBg, borderColor: inputBorder, color: inputColor }}
+                title="Windows Hello (Windows laptop security)"
+              >
+                <Laptop className="h-4 w-4 text-amber-400" />
+                Hello
               </button>
             </div>
           </div>
