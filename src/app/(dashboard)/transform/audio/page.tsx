@@ -5,7 +5,7 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
 import { 
   RefreshCw, ArrowLeft, Cpu, Mic, Square, Play, Pause, 
-  Upload, FileAudio, FileText, CheckSquare, ListPlus, Volume2 
+  Upload, FileAudio, FileText, CheckSquare, ListPlus, Volume2, Trash2
 } from "lucide-react";
 import Link from "next/link";
 import { useTheme, LIGHT, DARK } from "@/contexts/ThemeContext";
@@ -40,6 +40,13 @@ export default function AudioTransformPage() {
   // Toggle modes: "upload" vs "record"
   const [mode, setMode] = useState<"upload" | "record">("upload");
 
+  // Microphone state
+  const [micPermission, setMicPermission] = useState<"prompt" | "checking" | "granted" | "denied">("prompt");
+
+  // Upload States
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileBase64, setFileBase64] = useState<string>("");
+
   // Recording State
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -56,6 +63,7 @@ export default function AudioTransformPage() {
   const audioChunksRef = useRef<Blob[]>([]);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize Speech Recognition
   useEffect(() => {
@@ -71,7 +79,6 @@ export default function AudioTransformPage() {
         rec.lang = "en-US";
 
         rec.onresult = (event: SpeechRecognitionEvent) => {
-          let interim = "";
           let final = "";
           for (let i = event.resultIndex; i < Object.keys(event.results).length; ++i) {
             if (event.results[i][0]) {
@@ -79,7 +86,6 @@ export default function AudioTransformPage() {
               final += text + " ";
             }
           }
-          setInterimTranscript(interim);
           if (final) {
             setTranscript((prev) => prev + final);
           }
@@ -90,7 +96,6 @@ export default function AudioTransformPage() {
         };
 
         rec.onend = () => {
-          // Restart if recording is still active
           if (isRecording) {
             try { rec.start(); } catch (e) { /* ignore */ }
           }
@@ -115,7 +120,38 @@ export default function AudioTransformPage() {
     };
   }, [isRecording]);
 
+  // Check Mic Permission on mount
+  useEffect(() => {
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: "microphone" as PermissionName }).then((permissionStatus) => {
+        setMicPermission(permissionStatus.state as any);
+        permissionStatus.onchange = () => {
+          setMicPermission(permissionStatus.state as any);
+        };
+      }).catch(err => console.log("Permission query unsupported:", err));
+    }
+  }, []);
+
+  const requestMicPermission = async () => {
+    setMicPermission("checking");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => t.stop());
+      setMicPermission("granted");
+      return true;
+    } catch {
+      setMicPermission("denied");
+      return false;
+    }
+  };
+
   const startRecording = async () => {
+    const isGranted = micPermission === "granted" || await requestMicPermission();
+    if (!isGranted) {
+      alert("Microphone permission denied. Please allow camera/microphone access in your browser settings.");
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
@@ -147,8 +183,8 @@ export default function AudioTransformPage() {
         recognitionRef.current.start();
       }
     } catch (err) {
-      alert("Microphone permission denied or not supported.");
       console.error(err);
+      alert("Failed to initialize live microphone stream.");
     }
   };
 
@@ -169,11 +205,46 @@ export default function AudioTransformPage() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
+  // Upload Handling
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processAudioFile(file);
+    }
+  };
+
+  const processAudioFile = (file: File) => {
+    setSelectedFile(file);
+    setAudioUrl(URL.createObjectURL(file));
+    setOutput("");
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setFileBase64(event.target?.result as string || "");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeUploadedFile = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedFile(null);
+    setAudioUrl(null);
+    setFileBase64("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const triggerAIProcess = () => {
-    if (!transcript && mode === "record") {
+    if (mode === "record" && !transcript) {
       alert("Please record some audio with spoken words first.");
       return;
     }
+    if (mode === "upload" && !selectedFile) {
+      alert("Please select or drop an audio file first.");
+      return;
+    }
+
     setStatus("processing");
 
     setTimeout(() => {
@@ -197,11 +268,11 @@ export default function AudioTransformPage() {
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2" style={{ color: T.textPrimary }}>
+          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2" style={{ color: T.textPrimary }}>
             <Volume2 className="h-6 w-6 text-purple-600" />
             Audio Transform & Transcription
           </h1>
-          <p className="text-slate-600 text-xs mt-0.5" style={{ color: T.textSecondary }}>
+          <p className="text-xs mt-0.5" style={{ color: T.textSecondary }}>
             Transcribe files or record live speech to extract summaries, checklists, or minutes instantly.
           </p>
         </div>
@@ -251,16 +322,44 @@ export default function AudioTransformPage() {
             {/* Mode 1: File Upload Workspace */}
             {mode === "upload" ? (
               <div className="space-y-4">
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileChange} 
+                  className="hidden" 
+                  accept="audio/*" 
+                />
                 <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={e => {
+                    e.preventDefault();
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) processAudioFile(file);
+                  }}
                   className="p-10 border-2 border-dashed rounded-xl text-center cursor-pointer transition-all hover:border-purple-500/50"
                   style={{ backgroundColor: T.bgInput, borderColor: T.border }}
                 >
-                  <FileAudio className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-                  <span className="text-xs font-semibold text-slate-700 block" style={{ color: T.textPrimary }}>
-                    Drag & drop audio files here or click to load
+                  <FileAudio className="h-8 w-8 text-purple-600 mx-auto mb-2 animate-bounce" />
+                  <span className="text-xs font-semibold block" style={{ color: T.textPrimary }}>
+                    {selectedFile ? selectedFile.name : "Drag & drop audio files here or click to load"}
                   </span>
-                  <span className="text-[10px] text-slate-400 mt-1 block">Supports WAV, MP3, M4A (Max 15MB)</span>
+                  <span className="text-[10px] text-slate-400 mt-1 block" style={{ color: T.textSecondary }}>
+                    Supports WAV, MP3, M4A, WEBM (Max 50MB)
+                  </span>
                 </div>
+
+                {selectedFile && (
+                  <div className="p-3 rounded-xl border flex items-center justify-between" style={{ backgroundColor: T.bgHover, borderColor: T.border }}>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold truncate" style={{ color: T.textPrimary }}>{selectedFile.name}</p>
+                      <p className="text-[9px] text-slate-400">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                    </div>
+                    <button onClick={removeUploadedFile} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               // Mode 2: Live Mic Recording Workspace
@@ -283,10 +382,13 @@ export default function AudioTransformPage() {
                   </div>
 
                   <div className="space-y-1">
-                    <p className="text-sm font-bold text-slate-800" style={{ color: T.textPrimary }}>
+                    <p className="text-sm font-bold" style={{ color: T.textPrimary }}>
                       {isRecording ? "Recording Live..." : "Voice Recorder Ready"}
                     </p>
-                    <p className="text-lg font-mono font-bold text-slate-700" style={{ color: T.textPrimary }}>
+                    <p className="text-xs" style={{ color: T.textSecondary }}>
+                      Mic Access: {micPermission === "granted" ? "Granted" : micPermission === "denied" ? "Blocked" : "Not Requested"}
+                    </p>
+                    <p className="text-lg font-mono font-bold" style={{ color: T.textPrimary }}>
                       {formatTime(recordingTime)}
                     </p>
                   </div>
@@ -298,7 +400,7 @@ export default function AudioTransformPage() {
                         Start Record
                       </Button>
                     ) : (
-                      <Button onClick={stopRecording} className="text-xs px-4 bg-red-650 hover:bg-red-700">
+                      <Button onClick={stopRecording} className="text-xs px-4 bg-red-655 hover:bg-red-700">
                         <Square className="h-3.5 w-3.5 mr-1.5" />
                         Stop Record
                       </Button>
@@ -306,17 +408,9 @@ export default function AudioTransformPage() {
                   </div>
                 </div>
 
-                {/* Audio preview controls */}
-                {audioUrl && (
-                  <div className="p-3 rounded-xl border flex items-center justify-between" style={{ backgroundColor: T.bgHover, borderColor: T.border }}>
-                    <span className="text-[10px] font-bold text-slate-700" style={{ color: T.textPrimary }}>Recorded Clip:</span>
-                    <audio src={audioUrl} controls className="h-8 max-w-[200px]" />
-                  </div>
-                )}
-
                 {/* Live Speech transcript box */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500" style={{ color: T.textSecondary }}>Live speech transcript</label>
+                  <label className="text-[10px] font-bold" style={{ color: T.textSecondary }}>Live speech transcript</label>
                   <div 
                     className="p-3 rounded-xl border text-xs h-32 overflow-y-auto whitespace-pre-wrap leading-relaxed"
                     style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
@@ -334,9 +428,17 @@ export default function AudioTransformPage() {
               </div>
             )}
 
+            {/* Audio playback controls */}
+            {audioUrl && (
+              <div className="p-3 rounded-xl border flex items-center justify-between" style={{ backgroundColor: T.bgHover, borderColor: T.border }}>
+                <span className="text-[10px] font-bold" style={{ color: T.textPrimary }}>Audio Stream Preview:</span>
+                <audio src={audioUrl} controls className="h-8 max-w-[200px]" />
+              </div>
+            )}
+
             {/* Transform Target presets */}
             <div className="space-y-2.5">
-              <label className="text-[10px] font-bold text-slate-500" style={{ color: T.textSecondary }}>Select conversion template</label>
+              <label className="text-[10px] font-bold" style={{ color: T.textSecondary }}>Select conversion template</label>
               <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => setPreset("minutes")}
@@ -389,8 +491,8 @@ export default function AudioTransformPage() {
           <GlassCard className="h-[520px] flex flex-col justify-between border-slate-200 bg-white shadow-sm" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
             <div className="space-y-4 flex-1 flex flex-col min-h-0">
               <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: T.border }}>
-                <span className="text-xs font-bold text-slate-800" style={{ color: T.textPrimary }}>ACT Converted Output</span>
-                <span className="text-[10px] text-slate-400" style={{ color: T.textSecondary }}>Target: Converted Markdown</span>
+                <span className="text-xs font-bold" style={{ color: T.textPrimary }}>ACT Converted Output</span>
+                <span className="text-[10px]" style={{ color: T.textSecondary }}>Target: Converted Markdown</span>
               </div>
 
               <div 
