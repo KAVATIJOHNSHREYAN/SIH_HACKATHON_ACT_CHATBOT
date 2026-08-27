@@ -67,49 +67,14 @@ export default function AudioTransformPage() {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize Speech Recognition
+  // Clean up Speech Recognition on unmount
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const SpeechRecognitionClass = 
-        (window as unknown as { SpeechRecognition: new () => SpeechRecognition }).SpeechRecognition || 
-        (window as unknown as { webkitSpeechRecognition: new () => SpeechRecognition }).webkitSpeechRecognition;
-      
-      if (SpeechRecognitionClass) {
-        const rec = new SpeechRecognitionClass();
-        rec.continuous = true;
-        rec.interimResults = true;
-        rec.lang = "en-US";
-
-        rec.onresult = (event: SpeechRecognitionEvent) => {
-          let finalTranscript = "";
-          for (let i = 0; i < event.results.length; i++) {
-            if (event.results[i][0]) {
-              finalTranscript += event.results[i][0].transcript + " ";
-            }
-          }
-          setTranscript(finalTranscript);
-        };
-
-        rec.onerror = (err: unknown) => {
-          console.error("Speech Recognition Error:", err);
-        };
-
-        rec.onend = () => {
-          if (isRecordingRef.current) {
-            try { rec.start(); } catch (e) { /* ignore */ }
-          }
-        };
-
-        recognitionRef.current = rec;
-      }
-    }
-
     return () => {
       if (recognitionRef.current) {
         try { recognitionRef.current.stop(); } catch (e) {}
       }
     };
-  }, [isRecording]);
+  }, []);
 
   // Handle timer ticks
   useEffect(() => {
@@ -184,9 +149,38 @@ export default function AudioTransformPage() {
       setTranscript("");
       setAudioUrl(null);
 
-      // Start speech recognition
-      if (recognitionRef.current) {
-        recognitionRef.current.start();
+      // Start speech recognition on-demand
+      const SpeechRecognitionClass = 
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      
+      if (SpeechRecognitionClass) {
+        const rec = new SpeechRecognitionClass();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = "en-US";
+
+        rec.onresult = (event: SpeechRecognitionEvent) => {
+          let finalTranscript = "";
+          for (let i = 0; i < event.results.length; i++) {
+            if (event.results[i][0]) {
+              finalTranscript += event.results[i][0].transcript + " ";
+            }
+          }
+          setTranscript(finalTranscript);
+        };
+
+        rec.onerror = (err: any) => {
+          console.error("Speech Recognition Error:", err);
+        };
+
+        rec.onend = () => {
+          if (isRecordingRef.current) {
+            try { rec.start(); } catch (e) { /* ignore */ }
+          }
+        };
+
+        recognitionRef.current = rec;
+        rec.start();
       }
     } catch (err) {
       console.error(err);
