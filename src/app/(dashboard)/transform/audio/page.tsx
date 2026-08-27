@@ -14,6 +14,7 @@ import { useTheme, LIGHT, DARK } from "@/contexts/ThemeContext";
 type SpeechRecognitionEvent = {
   resultIndex: number;
   results: {
+    length: number;
     [key: number]: {
       [key: number]: {
         transcript: string;
@@ -49,6 +50,7 @@ export default function AudioTransformPage() {
 
   // Recording State
   const [isRecording, setIsRecording] = useState(false);
+  const isRecordingRef = useRef(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [transcript, setTranscript] = useState("");
@@ -79,16 +81,13 @@ export default function AudioTransformPage() {
         rec.lang = "en-US";
 
         rec.onresult = (event: SpeechRecognitionEvent) => {
-          let final = "";
-          for (let i = event.resultIndex; i < Object.keys(event.results).length; ++i) {
+          let finalTranscript = "";
+          for (let i = 0; i < event.results.length; i++) {
             if (event.results[i][0]) {
-              const text = event.results[i][0].transcript;
-              final += text + " ";
+              finalTranscript += event.results[i][0].transcript + " ";
             }
           }
-          if (final) {
-            setTranscript((prev) => prev + final);
-          }
+          setTranscript(finalTranscript);
         };
 
         rec.onerror = (err: unknown) => {
@@ -96,7 +95,7 @@ export default function AudioTransformPage() {
         };
 
         rec.onend = () => {
-          if (isRecording) {
+          if (isRecordingRef.current) {
             try { rec.start(); } catch (e) { /* ignore */ }
           }
         };
@@ -104,6 +103,12 @@ export default function AudioTransformPage() {
         recognitionRef.current = rec;
       }
     }
+
+    return () => {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (e) {}
+      }
+    };
   }, [isRecording]);
 
   // Handle timer ticks
@@ -173,6 +178,7 @@ export default function AudioTransformPage() {
       };
 
       mediaRecorder.start();
+      isRecordingRef.current = true;
       setIsRecording(true);
       setRecordingTime(0);
       setTranscript("");
@@ -189,12 +195,13 @@ export default function AudioTransformPage() {
   };
 
   const stopRecording = () => {
+    isRecordingRef.current = false;
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        try { recognitionRef.current.stop(); } catch (e) {}
       }
     }
   };
