@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Sparkles, Mail, Lock, LogIn, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Sparkles, Mail, Lock, LogIn, ArrowLeft, Eye, EyeOff, Fingerprint } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
 import { useUser } from "@/contexts/UserContext";
@@ -16,6 +16,57 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [hasBiometric, setHasBiometric] = useState(false);
+
+  // Check if biometric login is configured for this browser
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const biometricUser = localStorage.getItem("act_biometric_user");
+      if (biometricUser) {
+        setHasBiometric(true);
+      }
+    }
+  }, []);
+
+  // Parse Google OAuth hash token from URL redirect
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash) {
+      const params = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = params.get("access_token");
+      if (accessToken) {
+        setLoading(true);
+        fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.email) {
+              login({
+                id: `google_${data.sub || Date.now()}`,
+                name: data.name || data.given_name || data.email.split("@")[0],
+                email: data.email.toLowerCase(),
+                avatar: data.picture || "",
+                organization: "",
+                role: "User",
+                role: "Admin",
+                role: "Developer"
+                plan: "Free",
+                bio: "",
+                createdAt: new Date().toISOString(),
+                lastLogin: new Date().toISOString(),
+                achievements: [],
+              });
+              router.push("/dashboard");
+            }
+          })
+          .catch((err) => {
+            console.error("Google Auth failed:", err);
+            setError("Google OAuth verification failed. Please try again.");
+          })
+          .finally(() => setLoading(false));
+      }
+    }
+  }, [login, router]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +114,102 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleLogin = () => {
+    setLoading(true);
+    // Redirect to Google Identity OAuth implicit flow
+    // Using a general public API client ID for standalone browser redirects
+    const clientId = "1082260655823-uprqdfsl9n2g01i4g5n9h69u8qf9o7vj.apps.googleusercontent.com";
+    const redirectUri = window.location.origin + "/auth/login";
+    const targetUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=email%20profile`;
+    window.location.href = targetUrl;
+  };
+
+  // WebAuthn Browser Fingerprint / Face ID login
+  const handleBiometricLogin = async () => {
+    setError("");
+    try {
+      if (!window.PublicKeyCredential) {
+        setError("Biometric login (WebAuthn) is not supported by this browser.");
+        return;
+      }
+
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+
+      // Trigger WebAuthn credential retrieval dialog (Touch ID, Face ID, Windows Hello)
+      const credential = await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          allowCredentials: [],
+          userVerification: "required",
+          timeout: 60000
+        }
+      });
+
+      if (credential) {
+        const biometricUser = localStorage.getItem("act_biometric_user") || "guest@act.com";
+        const storedUser = localStorage.getItem("act_user");
+
+        const userObj = storedUser ? JSON.parse(storedUser) : {
+          id: `biometric_${Date.now()}`,
+          name: biometricUser.split("@")[0],
+          email: biometricUser,
+          role: "User",
+          plan: "Free",
+          createdAt: new Date().toISOString(),
+          lastLogin: new Date().toISOString(),
+          achievements: [],
+        };
+
+        login(userObj);
+        router.push("/dashboard");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError("Biometric verification failed: " + err.message);
+    }
+  };
+
+  // Register WebAuthn Biometrics for this device
+  const handleRegisterBiometrics = async () => {
+    setError("");
+    if (!email) {
+      setError("Please fill in your email address above to register biometrics.");
+      return;
+    }
+    try {
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+      const userId = new Uint8Array(16);
+      window.crypto.getRandomValues(userId);
+
+      // Trigger WebAuthn credential creation dialog (Touch ID, Face ID, Windows Hello)
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge,
+          rp: { name: "ACT Content Platform" },
+          user: {
+            id: userId,
+            name: email,
+            displayName: email.split("@")[0]
+          },
+          pubKeyCredParams: [{ alg: -7, type: "public-key" }],
+          authenticatorSelection: { userVerification: "preferred" },
+          timeout: 60000
+        }
+      });
+
+      if (credential) {
+        localStorage.setItem("act_biometric_user", email);
+        setHasBiometric(true);
+        alert("Device biometric registered successfully! You can now use Fingerprint / Face ID to sign in.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError("Failed to register biometrics: " + err.message);
+    }
+  };
+
   return (
     <div className="flex-1 flex items-center justify-center min-h-screen px-6 py-12 relative overflow-hidden">
       {/* Background glow orbs */}
@@ -87,9 +234,19 @@ export default function LoginPage() {
         <GlassCard className="p-8">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">
-                Email Address
-              </label>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                  Email Address
+                </label>
+                <button
+                  type="button"
+                  onClick={handleRegisterBiometrics}
+                  className="text-[10px] text-purple-400 hover:text-purple-300 font-bold transition-all"
+                  title="Enable Fingerprint / Face ID for this email"
+                >
+                  ⚡ Register Biometrics
+                </button>
+              </div>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
                   <Mail className="h-4.5 w-4.5" />
@@ -145,10 +302,23 @@ export default function LoginPage() {
               </p>
             )}
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign In"}
-              <LogIn className="ml-2 h-4 w-4" />
-            </Button>
+            <div className="flex gap-2">
+              <Button type="submit" className="flex-1 text-xs" disabled={loading}>
+                {loading ? "Signing in..." : "Sign In"}
+                <LogIn className="ml-2 h-4 w-4" />
+              </Button>
+
+              {hasBiometric && (
+                <Button
+                  type="button"
+                  onClick={handleBiometricLogin}
+                  className="px-3 bg-slate-800 hover:bg-slate-700 text-xs flex items-center gap-1.5"
+                  title="Sign in with Face ID or Fingerprint"
+                >
+                  <Fingerprint className="h-4.5 w-4.5 text-purple-400" />
+                </Button>
+              )}
+            </div>
           </form>
 
           <div className="relative my-6">
@@ -164,13 +334,8 @@ export default function LoginPage() {
             type="button"
             variant="outline"
             className="w-full flex items-center justify-center gap-2"
-            onClick={() => {
-              setLoading(true);
-              setTimeout(() => {
-                setLoading(false);
-                router.push("/dashboard");
-              }, 800);
-            }}
+            onClick={handleGoogleLogin}
+            disabled={loading}
           >
             {/* Simple colored Google Icon representation */}
             <svg className="h-4 w-4 mr-1" viewBox="0 0 24 24">
@@ -191,7 +356,7 @@ export default function LoginPage() {
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
               />
             </svg>
-            Google OAuth
+            Google Identity
           </Button>
 
           <p className="text-center text-xs text-slate-500 mt-6">
