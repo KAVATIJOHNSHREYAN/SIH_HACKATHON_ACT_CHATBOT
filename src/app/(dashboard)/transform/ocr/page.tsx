@@ -38,13 +38,47 @@ export default function OcrTransformPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  // Close camera on mode switch or unmount
+  // Close camera on mode switch
   useEffect(() => {
     return () => {
       stopCamera();
     };
   }, [mode]);
+
+  // Tab visibility changes, page unload and tab navigation cleanup listeners
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        console.log("Tab hidden, stopping camera immediately...");
+        stopCamera();
+      }
+    };
+
+    const handleBeforeUnload = () => {
+      console.log("Page unloading, stopping camera immediately...");
+      stopCamera();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      
+      // Cleanup camera streams on unmount/route change
+      if (streamRef.current) {
+        console.log("Component unmounting, releasing camera streams...");
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    };
+  }, []);
 
   // Stream binder to connect incoming media streams to the Video DOM Ref dynamically
   useEffect(() => {
@@ -70,6 +104,7 @@ export default function OcrTransformPage() {
         video: { facingMode: "environment" } 
       });
       console.log("Camera permission granted");
+      streamRef.current = stream;
       setCameraStream(stream);
       setCameraActive(true);
       setCameraPermission("granted");
@@ -94,10 +129,16 @@ export default function OcrTransformPage() {
   };
 
   const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => {
+        track.stop();
+        console.log(`Stopped track via streamRef: ${track.label}`);
+      });
+      streamRef.current = null;
+    }
     if (cameraStream) {
       cameraStream.getTracks().forEach((track) => {
         track.stop();
-        console.log(`Stopped track: ${track.label}`);
       });
       setCameraStream(null);
     }
