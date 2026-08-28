@@ -455,7 +455,6 @@ export default function VideoTransformPage() {
   const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
   const [fileDetails, setFileDetails] = useState<{ name: string; size: string; type: string } | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [fileBase64, setFileBase64] = useState<string>("");
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // States
@@ -484,7 +483,17 @@ export default function VideoTransformPage() {
     { id: "plain", label: "Plain Text" }
   ];
 
+  const readFileAsDataURL = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string || "");
+      reader.onerror = (err) => reject(new Error("Failed to read video file content."));
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleFileLoaded = (file: File) => {
+    console.log("upload started");
     setErrorMsg("");
     setOutput("");
     setTranscript("");
@@ -492,28 +501,24 @@ export default function VideoTransformPage() {
     setStats(null);
     setVideoUrl(URL.createObjectURL(file));
     setSelectedVideo(file);
-    console.log("Upload completed, selectedVideo updated:", file.name);
+    console.log("upload finished");
+    console.log("selected file:", file.name);
+    console.log("file size:", file.size);
 
     setFileDetails({
       name: file.name,
       size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
       type: file.type
     });
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setFileBase64(e.target?.result as string || "");
-    };
-    reader.readAsDataURL(file);
   };
 
   const triggerVideoTransform = async () => {
-    console.log("Trigger Transform clicked");
-    if (!selectedVideo || !fileBase64) {
+    console.log("Trigger clicked");
+    if (!selectedVideo) {
       alert("Please upload a video file first.");
       return;
     }
-    console.log("File received by processor:", selectedVideo.name);
+    console.log("file passed into transform:", selectedVideo.name);
 
     const tStart = performance.now();
     setErrorMsg("");
@@ -528,6 +533,8 @@ export default function VideoTransformPage() {
       // 1. READ METADATA & GENERATE PREVIEW
       setStage("Reading Video Metadata...");
       setProgress(10);
+      
+      const fileBase64 = await readFileAsDataURL(selectedVideo);
       await new Promise((r) => setTimeout(r, 600));
 
       const duration = videoRef.current?.duration || 60;
@@ -736,7 +743,6 @@ ${ocrDetectionsText || "No readable visual text detected on screen."}
     setSelectedVideo(null);
     setFileDetails(null);
     setVideoUrl(null);
-    setFileBase64("");
     setTranscript("");
     setFrames([]);
     setOutput("");
