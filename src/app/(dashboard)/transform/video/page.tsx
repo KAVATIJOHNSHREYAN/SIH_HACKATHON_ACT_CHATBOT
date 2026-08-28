@@ -564,20 +564,25 @@ export default function VideoTransformPage() {
       setStage("Running Speech Recognition...");
       setProgress(40);
 
-      // Request AI speech transcription from file payload
-      const transcriptPayload = {
-        fileData: fileBase64,
-        fileName: fileDetails?.name || "video_upload.mp4",
-        fileType: fileDetails?.type || "video/mp4",
-        format: "Speech Transcript (Transcribe all spoken dialogues sequentially with timestamp lines)",
-        model: "Gemini Pro",
-        apiKey: savedApiKey || null,
-        openaiKey: savedOpenaiKey || null,
-        cohereKey: savedCohereKey || null,
-      };
+      let rawTranscriptText = "";
+      if (selectedVideo.size <= 3.5 * 1024 * 1024) {
+        // Request AI speech transcription from file payload
+        const transcriptPayload = {
+          fileData: fileBase64,
+          fileName: fileDetails?.name || "video_upload.mp4",
+          fileType: fileDetails?.type || "video/mp4",
+          format: "Speech Transcript (Transcribe all spoken dialogues sequentially with timestamp lines)",
+          model: "Gemini Pro",
+          apiKey: savedApiKey || null,
+          openaiKey: savedOpenaiKey || null,
+          cohereKey: savedCohereKey || null,
+        };
 
-      const transcriptRes = await ApiClient.postTransform(transcriptPayload);
-      const rawTranscriptText = transcriptRes.output || "No speech dialogue was detected in the video track.";
+        const transcriptRes = await ApiClient.postTransform(transcriptPayload);
+        rawTranscriptText = transcriptRes.output || "No speech dialogue was detected in the video track.";
+      } else {
+        rawTranscriptText = `[Speech Transcription bypassed due to server size limits. Transformed output is compiled from visual screen OCR below.]`;
+      }
       setTranscript(rawTranscriptText);
 
       // 3. EXTRACT CANVAS FRAMES AT SPECIFIED INTERVALS
@@ -734,7 +739,11 @@ ${ocrDetectionsText || "No readable visual text detected on screen."}
     } catch (err: any) {
       console.error(err);
       setStatus("error");
-      setErrorMsg(err.message || "Failed to process video pipeline or connect to AI engine.");
+      let message = err.message || "Failed to process video pipeline or connect to AI engine.";
+      if (message.includes("Unexpected token") || message.includes("is not valid JSON") || message.includes("413")) {
+        message = "Video payload is too large for serverless transfer. Please compress the video file or use a smaller clip under 50 MB.";
+      }
+      setErrorMsg(message);
     }
   };
 
