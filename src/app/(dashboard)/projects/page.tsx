@@ -5,8 +5,8 @@ import {
   FolderGit2, Calendar, FileCheck, Layers, Plus, ArrowLeft, Search, 
   Star, Pin, Trash2, X, MessageSquare, Upload, Cpu, Download, 
   Copy, Check, FileText, Zap, Brain, Edit2, Play, Users, BarChart3, 
-  Settings, History, List, Grid, ChevronRight, AlertCircle, Sparkles, Mic, MicOff,
-  User, Bot, Send
+  Settings, History, List, Grid, ChevronRight, AlertCircle, Sparkles, 
+  Mic, MicOff, User, Bot, Send, Shield, Info, Database, Eye, RefreshCcw, Share2, MoreVertical
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
@@ -35,13 +35,19 @@ interface ProjectFile {
   type: string;
   size: string;
   date: string;
+  status: "Uploading" | "Processing" | "OCR" | "Embedding" | "Indexed" | "Ready";
+  chunksCount: number;
 }
 
-interface ChatMessage {
+interface ChatSession {
   id: string;
-  role: "user" | "assistant";
-  content: string;
-  time: string;
+  title: string;
+  messages: Array<{
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    time: string;
+  }>;
 }
 
 interface Project {
@@ -59,12 +65,14 @@ interface Project {
   owner: string;
   status: "Active" | "Archived" | "Completed";
   progress: number;
+  starred: boolean;
+  shared: boolean;
   filesCount: number;
   tokensUsed: string;
   storageUsed: string;
   pinned: boolean;
   files: ProjectFile[];
-  chatHistory: ChatMessage[];
+  chatHistory: ChatSession[];
   outputs: GeneratedOutput[];
   history: ActivityLog[];
 }
@@ -84,18 +92,26 @@ const DEFAULT_PROJECTS: Project[] = [
     date: "2026-08-20",
     owner: "Admin Owner",
     status: "Active",
-    progress: 75,
+    progress: 85,
+    starred: true,
+    shared: false,
     filesCount: 3,
     tokensUsed: "420K",
     storageUsed: "12.4 MB",
     pinned: true,
     files: [
-      { id: "file_acme_1", name: "SLA_Contract_Draft.pdf", type: "PDF", size: "8.2 MB", date: "2026-08-20" },
-      { id: "file_acme_2", name: "Acme_SLA_Guidelines.docx", type: "DOCX", size: "3.1 MB", date: "2026-08-19" },
-      { id: "file_acme_3", name: "Audit_Checklist.txt", type: "TXT", size: "1.1 MB", date: "2026-08-20" }
+      { id: "file_acme_1", name: "SLA_Contract_Draft.pdf", type: "PDF", size: "8.2 MB", date: "2026-08-20", status: "Ready", chunksCount: 142 },
+      { id: "file_acme_2", name: "Acme_SLA_Guidelines.docx", type: "DOCX", size: "3.1 MB", date: "2026-08-19", status: "Ready", chunksCount: 68 },
+      { id: "file_acme_3", name: "Audit_Checklist.txt", type: "TXT", size: "1.1 MB", date: "2026-08-20", status: "Ready", chunksCount: 24 }
     ],
     chatHistory: [
-      { id: "msg_1", role: "assistant", content: "Hi, I have loaded the Acme compliance guidelines. You can query liabilities or timeline details.", time: "10:30 AM" }
+      {
+        id: "chat_acme_1",
+        title: "Initial Compliance Query",
+        messages: [
+          { id: "msg_1", role: "assistant", content: "Hi, I have loaded the Acme compliance guidelines. You can query liabilities or timeline details.", time: "10:30 AM" }
+        ]
+      }
     ],
     outputs: [
       { id: "out_acme_1", title: "Compliance Risk Assessment Matrix", content: "### Acme Compliance Audit Summary\n\n1. **Liability Cap**: Section 12.4 sets liability limits to 1.5x yearly fees.\n2. **Termination SLAs**: 30-day notice period is standard, but Acme draft requests 90 days.\n3. **Recommendation**: Request revision of notice period to 45 days.", date: "2026-08-20", preset: "Executive Summary" }
@@ -119,17 +135,25 @@ const DEFAULT_PROJECTS: Project[] = [
     date: "2026-08-18",
     owner: "Admin Owner",
     status: "Active",
-    progress: 40,
+    progress: 60,
+    starred: false,
+    shared: true,
     filesCount: 2,
     tokensUsed: "150K",
     storageUsed: "22.5 MB",
     pinned: false,
     files: [
-      { id: "file_mkt_1", name: "Feedback_Call_Aug18.mp3", type: "MP3", size: "18.4 MB", date: "2026-08-18" },
-      { id: "file_mkt_2", name: "Meeting_Brief.txt", type: "TXT", size: "4.1 KB", date: "2026-08-18" }
+      { id: "file_mkt_1", name: "Feedback_Call_Aug18.mp3", type: "MP3", size: "18.4 MB", date: "2026-08-18", status: "Ready", chunksCount: 312 },
+      { id: "file_mkt_2", name: "Meeting_Brief.txt", type: "TXT", size: "4.1 KB", date: "2026-08-18", status: "Ready", chunksCount: 8 }
     ],
     chatHistory: [
-      { id: "msg_mkt_1", role: "assistant", content: "Feedback audio loaded. Highlights indicate core concerns are UI loading speed and template customization.", time: "2:15 PM" }
+      {
+        id: "chat_mkt_1",
+        title: "Product UI feedback analysis",
+        messages: [
+          { id: "msg_mkt_1", role: "assistant", content: "Feedback audio loaded. Highlights indicate core concerns are UI loading speed and template customization.", time: "2:15 PM" }
+        ]
+      }
     ],
     outputs: [],
     history: [
@@ -142,15 +166,18 @@ export default function AIWorkspaceManager() {
   const { isDark } = useTheme();
   const T = isDark ? DARK : LIGHT;
 
-  // Storage states
+  // Local storage lists
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
-  
-  // Dashboard states
-  const [searchQuery, setSearchQuery] = useState("");
-  const [createModalOpen, setCreateModalOpen] = useState(false);
 
-  // Create Project form state
+  // Filters and searches
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentFilter, setCurrentFilter] = useState<"All" | "Recent" | "Favorites" | "Shared" | "Archived">("All");
+  const [sortBy, setSortBy] = useState<"name" | "date" | "progress">("date");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  // Create Project Modal states
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const [newProjName, setNewProjName] = useState("");
   const [newProjDesc, setNewProjDesc] = useState("");
   const [newProjColor, setNewProjColor] = useState("#a855f7");
@@ -158,55 +185,62 @@ export default function AIWorkspaceManager() {
   const [newProjModel, setNewProjModel] = useState("Gemini Pro");
   const [newProjLanguage, setNewProjLanguage] = useState("English");
   const [newProjPrivacy, setNewProjPrivacy] = useState<"Private" | "Team">("Private");
+  const [newProjEnableRag, setNewProjEnableRag] = useState(true);
 
-  // Workspace active tab
-  const [activeTab, setActiveTab] = useState<"Overview" | "Files" | "AI Chat" | "Quick Actions" | "Generated Outputs" | "History" | "Analytics" | "Settings">("Overview");
+  // Tabs inside specific workspace
+  const [activeTab, setActiveTab] = useState<"Files" | "AI Workspace" | "Chats" | "Generated Outputs" | "Knowledge Base" | "Analytics" | "Activity" | "Settings">("Files");
 
-  // Workspace RAG chat state
+  // AI Workspace Prompt and response states
+  const [workspacePrompt, setWorkspacePrompt] = useState("");
+  const [workspaceResponse, setWorkspaceResponse] = useState("");
+  const [workspaceAiLoading, setWorkspaceAiLoading] = useState(false);
+
+  // Chats tab states
+  const [selectedChatSessionId, setSelectedChatSessionId] = useState<string>("");
   const [chatInput, setChatInput] = useState("");
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  // File Upload Indicator
+  // Quick Action execution trigger on files
+  const [quickActionPreset, setQuickActionPreset] = useState("summary");
+  const [quickActionFileId, setQuickActionFileId] = useState("");
+  const [quickActionCustomPrompt, setQuickActionCustomPrompt] = useState("");
+
+  // Upload hooks
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStage, setUploadStage] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Quick Action Form state
-  const [selectedActionPreset, setSelectedActionPreset] = useState("summary");
-  const [customActionPrompt, setCustomActionPrompt] = useState("");
-  const [selectedActionFile, setSelectedActionFile] = useState<string>("");
-
-  // Load from local storage
+  // Load datasets on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("act_assistant_projects_manager");
+      const stored = localStorage.getItem("act_assistant_projects_workspace_details");
       if (stored) {
         setProjects(JSON.parse(stored));
       } else {
         setProjects(DEFAULT_PROJECTS);
-        localStorage.setItem("act_assistant_projects_manager", JSON.stringify(DEFAULT_PROJECTS));
+        localStorage.setItem("act_assistant_projects_workspace_details", JSON.stringify(DEFAULT_PROJECTS));
       }
     }
   }, []);
 
-  const saveProjects = (updatedProjects: Project[]) => {
-    setProjects(updatedProjects);
-    localStorage.setItem("act_assistant_projects_manager", JSON.stringify(updatedProjects));
+  const saveProjects = (updated: Project[]) => {
+    setProjects(updated);
+    localStorage.setItem("act_assistant_projects_workspace_details", JSON.stringify(updated));
   };
 
   const handleCreateProject = () => {
     if (!newProjName.trim()) {
-      alert("Please specify a project name.");
+      alert("Please provide a valid project name.");
       return;
     }
 
     const newProject: Project = {
       id: `proj_${Date.now()}`,
       name: newProjName,
-      desc: newProjDesc || "AI assisted content transformation workspace.",
-      icon: "Folder",
+      desc: newProjDesc || "AI Knowledge base context folder.",
+      icon: "FolderGit2",
       color: newProjColor,
       category: newProjCategory,
       tags: [newProjCategory],
@@ -216,25 +250,33 @@ export default function AIWorkspaceManager() {
       date: new Date().toISOString().split('T')[0],
       owner: "Admin Owner",
       status: "Active",
-      progress: 0,
+      progress: 5,
+      starred: false,
+      shared: newProjPrivacy === "Team",
       filesCount: 0,
       tokensUsed: "0K",
       storageUsed: "0 MB",
       pinned: false,
       files: [],
       chatHistory: [
-        { id: `wel_${Date.now()}`, role: "assistant", content: `Welcome to your AI workspace: ${newProjName}. Upload files or type prompts to get started.`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+        {
+          id: `chat_session_${Date.now()}`,
+          title: "General Workspace Chat",
+          messages: [
+            { id: `wel_${Date.now()}`, role: "assistant", content: `Welcome to ${newProjName} AI Workspace. Index documents to begin RAG search.`, time: "Just now" }
+          ]
+        }
       ],
       outputs: [],
       history: [
-        { id: `hist_${Date.now()}`, type: "System", detail: `Project ${newProjName} initialized.`, date: new Date().toISOString().split('T')[0] }
+        { id: `hist_${Date.now()}`, type: "System", detail: `Project Workspace ${newProjName} created.`, date: new Date().toISOString().split('T')[0] }
       ]
     };
 
     const updated = [newProject, ...projects];
     saveProjects(updated);
 
-    // Reset inputs & close
+    // Reset fields
     setNewProjName("");
     setNewProjDesc("");
     setCreateModalOpen(false);
@@ -242,7 +284,7 @@ export default function AIWorkspaceManager() {
 
   const deleteProject = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm("Are you sure you want to delete this project workspace and all its data?")) {
+    if (confirm("Are you sure you want to permanently delete this project workspace and all indexed assets?")) {
       const updated = projects.filter(p => p.id !== id);
       saveProjects(updated);
       if (activeProject?.id === id) {
@@ -251,66 +293,95 @@ export default function AIWorkspaceManager() {
     }
   };
 
-  const togglePinProject = (id: string, e: React.MouseEvent) => {
+  const toggleStarProject = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated = projects.map(p => p.id === id ? { ...p, pinned: !p.pinned } : p);
+    const updated = projects.map(p => p.id === id ? { ...p, starred: !p.starred } : p);
     saveProjects(updated);
     if (activeProject?.id === id) {
-      setActiveProject({ ...activeProject, pinned: !activeProject.pinned });
+      setActiveProject({ ...activeProject, starred: !activeProject.starred });
     }
   };
 
-  // Workspace file uploads
-  const handleWorkspaceFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const toggleShareProject = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = projects.map(p => p.id === id ? { ...p, shared: !p.shared } : p);
+    saveProjects(updated);
+    if (activeProject?.id === id) {
+      setActiveProject({ ...activeProject, shared: !activeProject.shared });
+    }
+  };
+
+  // Upload workspace files & transition status
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploaded = e.target.files;
     if (uploaded && activeProject) {
-      processWorkspaceFiles(Array.from(uploaded));
+      processWorkspaceUpload(Array.from(uploaded));
     }
   };
 
-  const processWorkspaceFiles = async (fileList: File[]) => {
+  const processWorkspaceUpload = async (fileList: File[]) => {
     if (!activeProject) return;
     setIsUploading(true);
-    setUploadProgress(20);
+    setUploadProgress(10);
 
-    const updatedFiles = [...activeProject.files];
-    const updatedHistory = [...activeProject.history];
+    const targetProjFiles = [...activeProject.files];
+    const targetProjHistory = [...activeProject.history];
 
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
-      setUploadStage(`Processing & indexing: ${file.name}`);
-      setUploadProgress(Math.round(((i + 1) / fileList.length) * 100));
-      await new Promise(r => setTimeout(r, 600));
+      const fileId = `file_${Date.now()}_${i}`;
+      const ext = file.name.split('.').pop()?.toUpperCase() || "TXT";
 
-      const fileExtension = file.name.split('.').pop()?.toUpperCase() || "TXT";
-      const newFile: ProjectFile = {
-        id: `file_${Date.now()}_${i}`,
+      const baseFile: ProjectFile = {
+        id: fileId,
         name: file.name,
-        type: fileExtension,
+        type: ext,
         size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
-        date: new Date().toISOString().split('T')[0]
+        date: new Date().toISOString().split('T')[0],
+        status: "Uploading",
+        chunksCount: 0
       };
+      
+      // Simulating real-time AI indexation pipeline states
+      targetProjFiles.push(baseFile);
+      setActiveProject({ ...activeProject, files: targetProjFiles });
 
-      updatedFiles.push(newFile);
-      updatedHistory.push({
+      const stages: Array<ProjectFile["status"]> = ["Processing", "OCR", "Embedding", "Indexed", "Ready"];
+      for (let sIdx = 0; sIdx < stages.length; sIdx++) {
+        setUploadStage(`[${file.name}] Step ${sIdx + 1}/5: ${stages[sIdx]}`);
+        setUploadProgress(Math.round(((i + (sIdx + 1) / stages.length) / fileList.length) * 100));
+        await new Promise(r => setTimeout(r, 450));
+
+        // Update individual file status dynamically
+        const fileRef = targetProjFiles.find(f => f.id === fileId);
+        if (fileRef) {
+          fileRef.status = stages[sIdx];
+          if (stages[sIdx] === "Ready") {
+            fileRef.chunksCount = Math.floor(Math.random() * 50) + 15;
+          }
+        }
+        setActiveProject({ ...activeProject, files: [...targetProjFiles] });
+      }
+
+      targetProjHistory.push({
         id: `hist_${Date.now()}_${i}`,
         type: "Upload",
-        detail: `Uploaded ${file.name}`,
+        detail: `Indexed ${file.name} to RAG Knowledge Base`,
         date: new Date().toISOString().split('T')[0]
       });
     }
 
     const updatedProjObj: Project = {
       ...activeProject,
-      files: updatedFiles,
-      history: updatedHistory,
-      filesCount: updatedFiles.length,
-      storageUsed: `${(parseFloat(activeProject.storageUsed) + fileList.length * 1.5).toFixed(1)} MB`
+      files: targetProjFiles,
+      history: targetProjHistory,
+      filesCount: targetProjFiles.length,
+      progress: Math.min(activeProject.progress + 15, 100),
+      storageUsed: `${(parseFloat(activeProject.storageUsed) + fileList.length * 2.1).toFixed(1)} MB`
     };
 
-    // Save to lists
-    const updatedProjList = projects.map(p => p.id === activeProject.id ? updatedProjObj : p);
-    saveProjects(updatedProjList);
+    const updatedList = projects.map(p => p.id === activeProject.id ? updatedProjObj : p);
+    saveProjects(updatedList);
     setActiveProject(updatedProjObj);
 
     setIsUploading(false);
@@ -325,7 +396,7 @@ export default function AIWorkspaceManager() {
       {
         id: `hist_${Date.now()}`,
         type: "Delete",
-        detail: `Removed file ${file?.name || "Unknown"}`,
+        detail: `Purged indexed file ${file?.name || "Unknown"}`,
         date: new Date().toISOString().split('T')[0]
       },
       ...activeProject.history
@@ -338,37 +409,120 @@ export default function AIWorkspaceManager() {
       filesCount: updatedFiles.length
     };
 
-    const updatedProjList = projects.map(p => p.id === activeProject.id ? updatedProjObj : p);
-    saveProjects(updatedProjList);
+    const updatedList = projects.map(p => p.id === activeProject.id ? updatedProjObj : p);
+    saveProjects(updatedList);
     setActiveProject(updatedProjObj);
   };
 
-  // Workspace RAG Chat
-  const handleSendWorkspaceChat = async () => {
-    if (!chatInput.trim() || !activeProject) return;
+  // Rebuild embeddings RAG health action
+  const rebuildEmbeddings = async () => {
+    if (!activeProject) return;
+    setIsUploading(true);
+    setUploadStage("Re-embedding all document layout schemas...");
+    setUploadProgress(25);
+    await new Promise(r => setTimeout(r, 600));
 
-    const userMsg: ChatMessage = {
-      id: `msg_${Date.now()}`,
-      role: "user",
-      content: chatInput,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
+    setUploadProgress(65);
+    setUploadStage("Vectorizing text chunks & mapping metadata...");
+    await new Promise(r => setTimeout(r, 600));
 
-    const updatedChat = [...activeProject.chatHistory, userMsg];
-    
-    // Optimistic UI update
-    setActiveProject({ ...activeProject, chatHistory: updatedChat });
-    setChatInput("");
+    setUploadProgress(100);
+    setUploadStage("Vector store rebuild completed successfully");
+    await new Promise(r => setTimeout(r, 400));
+    setIsUploading(false);
+    setUploadProgress(0);
+
+    alert("RAG Knowledge base embeddings rebuilt successfully!");
+  };
+
+  // Tab: AI Workspace dedicated queries
+  const handleWorkspaceQuery = async () => {
+    if (!workspacePrompt.trim() || !activeProject) return;
+    setWorkspaceAiLoading(true);
+    setWorkspaceResponse("");
 
     try {
       const savedApiKey = typeof window !== "undefined" ? localStorage.getItem("gemini_api_key") : "";
       const savedOpenaiKey = typeof window !== "undefined" ? localStorage.getItem("openai_api_key") : "";
       const savedCohereKey = typeof window !== "undefined" ? localStorage.getItem("cohere_api_key") : "";
 
-      const fileContextTexts = activeProject.files.map(f => `[File Context: ${f.name} (Size: ${f.size})]`).join("\n");
+      const fileDetailsText = activeProject.files.map(f => `- ${f.name} (${f.type}, ${f.chunksCount} chunks)`).join("\n");
+
+      const payload = {
+        text: `[Active Project context: ${activeProject.name}]\n[Knowledge base files]:\n${fileDetailsText}\n\nUser Query: ${workspacePrompt}`,
+        format: "Transform summary layout with structured markdown highlights.",
+        model: activeProject.model,
+        apiKey: savedApiKey || null,
+        openaiKey: savedOpenaiKey || null,
+        cohereKey: savedCohereKey || null
+      };
+
+      const response = await ApiClient.postTransform(payload);
+      setWorkspaceResponse(response.output || "No output compiled.");
+
+      // Save as generated report outputs
+      const newOutput: GeneratedOutput = {
+        id: `out_${Date.now()}`,
+        title: `Workspace Query - ${workspacePrompt.slice(0, 30)}...`,
+        content: response.output || "",
+        date: new Date().toISOString().split('T')[0],
+        preset: "Custom Prompt"
+      };
+
+      const updatedProjObj = {
+        ...activeProject,
+        outputs: [newOutput, ...activeProject.outputs],
+        history: [{ id: `hist_rag_${Date.now()}`, type: "AI Transform", detail: `Ran Workspace Prompt: "${workspacePrompt.slice(0, 20)}..."`, date: new Date().toISOString().split('T')[0] }, ...activeProject.history]
+      };
+
+      const updatedList = projects.map(p => p.id === activeProject.id ? updatedProjObj : p);
+      saveProjects(updatedList);
+      setActiveProject(updatedProjObj);
+
+    } catch (err: any) {
+      console.error(err);
+      setWorkspaceResponse(err.message || "Failed to process RAG project pipeline query.");
+    } finally {
+      setWorkspaceAiLoading(false);
+    }
+  };
+
+  // Chats Tab: Send messages inside selected chat session
+  const handleSendChat = async () => {
+    if (!chatInput.trim() || !activeProject) return;
+    const sessionList = [...activeProject.chatHistory];
+    let activeSession = sessionList.find(s => s.id === selectedChatSessionId);
+
+    if (!activeSession) {
+      activeSession = {
+        id: `chat_session_${Date.now()}`,
+        title: chatInput.slice(0, 25),
+        messages: []
+      };
+      sessionList.push(activeSession);
+      setSelectedChatSessionId(activeSession.id);
+    }
+
+    const userMsg = {
+      id: `msg_${Date.now()}`,
+      role: "user" as const,
+      content: chatInput,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    activeSession.messages.push(userMsg);
+    setChatInput("");
+
+    // Optimistic trigger
+    setActiveProject({ ...activeProject, chatHistory: sessionList });
+
+    try {
+      const savedApiKey = typeof window !== "undefined" ? localStorage.getItem("gemini_api_key") : "";
+      const savedOpenaiKey = typeof window !== "undefined" ? localStorage.getItem("openai_api_key") : "";
+      const savedCohereKey = typeof window !== "undefined" ? localStorage.getItem("cohere_api_key") : "";
 
       const response = await ApiClient.postChat({
-        messages: updatedChat.map(m => ({ role: m.role, content: m.content })),
+        messages: activeSession.messages.map(m => ({ role: m.role, content: m.content })),
         files: [],
         model: activeProject.model,
         apiKey: savedApiKey || null,
@@ -377,109 +531,54 @@ export default function AIWorkspaceManager() {
         useRAG: true
       });
 
-      const assistantMsg: ChatMessage = {
+      const assistantMsg = {
         id: `msg_ai_${Date.now()}`,
-        role: "assistant",
+        role: "assistant" as const,
         content: response.content,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
-      const finalChat = [...updatedChat, assistantMsg];
+      activeSession.messages.push(assistantMsg);
+
       const updatedProjObj = {
         ...activeProject,
-        chatHistory: finalChat,
-        history: [{ id: `hist_chat_${Date.now()}`, type: "AI Chat", detail: `Queried AI: "${userMsg.content.slice(0, 25)}..."`, date: new Date().toISOString().split('T')[0] }, ...activeProject.history]
+        chatHistory: sessionList,
+        history: [{ id: `hist_chat_${Date.now()}`, type: "AI Chat", detail: `Sent chat query: "${userMsg.content.slice(0, 20)}..."`, date: new Date().toISOString().split('T')[0] }, ...activeProject.history]
       };
 
-      const updatedProjList = projects.map(p => p.id === activeProject.id ? updatedProjObj : p);
-      saveProjects(updatedProjList);
+      const updatedList = projects.map(p => p.id === activeProject.id ? updatedProjObj : p);
+      saveProjects(updatedList);
       setActiveProject(updatedProjObj);
 
     } catch (err: any) {
       console.error(err);
-      const errMsg: ChatMessage = {
+      const errMsg = {
         id: `msg_err_${Date.now()}`,
-        role: "assistant",
-        content: err.message || "Failed to retrieve AI model response.",
+        role: "assistant" as const,
+        content: err.message || "Failed to retrieve chat response.",
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
-      setActiveProject({ ...activeProject, chatHistory: [...updatedChat, errMsg] });
+      activeSession.messages.push(errMsg);
+      setActiveProject({ ...activeProject, chatHistory: sessionList });
     }
   };
 
-  // Quick Action execution on selected file
-  const handleExecuteQuickAction = async () => {
+  const createNewChatSession = () => {
     if (!activeProject) return;
-    const targetFile = activeProject.files.find(f => f.id === selectedActionFile);
-    if (!targetFile) {
-      alert("Please upload and select a project file first.");
-      return;
-    }
-
-    setIsUploading(true);
-    setUploadStage(`Executing quick action on ${targetFile.name}...`);
-    setUploadProgress(40);
-
-    try {
-      const savedApiKey = typeof window !== "undefined" ? localStorage.getItem("gemini_api_key") : "";
-      const savedOpenaiKey = typeof window !== "undefined" ? localStorage.getItem("openai_api_key") : "";
-      const savedCohereKey = typeof window !== "undefined" ? localStorage.getItem("cohere_api_key") : "";
-
-      const defaultPrompt = customActionPrompt || `Summarize this file: ${selectedActionPreset}`;
-      const payload = {
-        text: `[Source Document: ${targetFile.name}]\n- File Size: ${targetFile.size}\n- Extension: ${targetFile.type}\nContent transformation RAG analysis.`,
-        format: defaultPrompt,
-        model: activeProject.model,
-        apiKey: savedApiKey || null,
-        openaiKey: savedOpenaiKey || null,
-        cohereKey: savedCohereKey || null
-      };
-
-      const response = await ApiClient.postTransform(payload);
-
-      setUploadProgress(100);
-      setUploadStage("Action output compiled successfully");
-
-      const newOutput: GeneratedOutput = {
-        id: `out_${Date.now()}`,
-        title: `${targetFile.name.split(".")[0]} - ${selectedActionPreset.toUpperCase()}`,
-        content: response.output || "No output compiled.",
-        date: new Date().toISOString().split('T')[0],
-        preset: selectedActionPreset
-      };
-
-      const updatedOutputs = [newOutput, ...activeProject.outputs];
-      const updatedHistory = [
-        {
-          id: `hist_${Date.now()}`,
-          type: "AI Transform",
-          detail: `Executed Quick Action: ${selectedActionPreset} on ${targetFile.name}`,
-          date: new Date().toISOString().split('T')[0]
-        },
-        ...activeProject.history
-      ];
-
-      const updatedProjObj = {
-        ...activeProject,
-        outputs: updatedOutputs,
-        history: updatedHistory
-      };
-
-      const updatedProjList = projects.map(p => p.id === activeProject.id ? updatedProjObj : p);
-      saveProjects(updatedProjList);
-      setActiveProject(updatedProjObj);
-
-      alert(`Transformation compiled! View details in the 'Generated Outputs' tab.`);
-    } catch (err: any) {
-      console.error(err);
-      alert(err.message || "Failed to trigger AI quick action.");
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
-    }
+    const newSession: ChatSession = {
+      id: `chat_session_${Date.now()}`,
+      title: `Conversation ${activeProject.chatHistory.length + 1}`,
+      messages: []
+    };
+    const updatedChat = [...activeProject.chatHistory, newSession];
+    const updatedProjObj = { ...activeProject, chatHistory: updatedChat };
+    const updatedList = projects.map(p => p.id === activeProject.id ? updatedProjObj : p);
+    saveProjects(updatedList);
+    setActiveProject(updatedProjObj);
+    setSelectedChatSessionId(newSession.id);
   };
 
-  // Toggle Voice input for Chat
+  // Voice recognition toggle for Chats tab
   const toggleVoiceInput = () => {
     if (isVoiceActive) {
       if (recognitionRef.current) recognitionRef.current.stop();
@@ -487,19 +586,19 @@ export default function AIWorkspaceManager() {
       return;
     }
 
-    const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognitionClass) {
-      alert("Web Speech API is not supported in this browser. Please use Chrome or Edge.");
+    const SpeechClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechClass) {
+      alert("Voice speech recognition is not supported in this browser.");
       return;
     }
 
-    const rec = new SpeechRecognitionClass();
+    const rec = new SpeechClass();
     rec.continuous = false;
     rec.lang = "en-US";
     rec.onstart = () => setIsVoiceActive(true);
     rec.onresult = (e: any) => {
-      const txt = e.results[0][0].transcript;
-      setChatInput(prev => prev ? `${prev} ${txt}` : txt);
+      const text = e.results[0][0].transcript;
+      setChatInput(prev => prev ? `${prev} ${text}` : text);
     };
     rec.onend = () => setIsVoiceActive(false);
     recognitionRef.current = rec;
@@ -507,115 +606,232 @@ export default function AIWorkspaceManager() {
   };
 
   // Filter project cards on dashboard
-  const filteredProjects = projects.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    p.desc.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredProjects = projects
+    .filter(p => {
+      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            p.desc.toLowerCase().includes(searchQuery.toLowerCase());
+      if (!matchesSearch) return false;
+
+      if (currentFilter === "Favorites") return p.starred;
+      if (currentFilter === "Shared") return p.shared;
+      if (currentFilter === "Archived") return p.status === "Archived";
+      if (currentFilter === "Recent") {
+        return p.date.includes("2026-08"); // matches current mock date
+      }
+      return p.status !== "Archived";
+    })
+    .sort((a, b) => {
+      if (sortBy === "name") return a.name.localeCompare(b.name);
+      if (sortBy === "progress") return b.progress - a.progress;
+      return b.date.localeCompare(a.date);
+    });
+
+  const selectedSessionMessages = activeProject?.chatHistory.find(s => s.id === selectedChatSessionId)?.messages || [];
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
       
-      {/* File uploader DOM hook */}
+      {/* File input click hook */}
       <input
         type="file"
         multiple
         ref={fileInputRef}
-        onChange={handleWorkspaceFileUpload}
+        onChange={handleFileUpload}
         className="hidden"
       />
 
-      {/* DASHBOARD MODE: Displaying Project Cards */}
+      {/* DASHBOARD LIST VIEW MODE */}
       {!activeProject ? (
         <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight" style={{ color: T.textPrimary }}>AI Workspace Manager</h1>
-              <p className="text-xs mt-1" style={{ color: T.textSecondary }}>
-                Intelligent RAG workspaces. Organize files, chat with AI, compile custom quick actions, and manage documents.
+              <h1 className="text-2xl font-bold tracking-tight" style={{ color: T.textPrimary }}>AI Workspace Projects</h1>
+              <p className="text-xs mt-0.5" style={{ color: T.textSecondary }}>
+                Notion + Google Drive + ChatGPT Projects combined into a premium context-aware AI workspace manager.
               </p>
             </div>
             
-            <div className="flex gap-3">
-              {/* Search */}
-              <div className="relative w-full sm:w-60">
-                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search workspaces..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 rounded-xl text-xs focus:outline-none border shadow-inner"
-                  style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
-                />
-              </div>
-
-              <Button 
-                onClick={() => setCreateModalOpen(true)}
-                className="flex items-center gap-1.5 shadow-sm rounded-xl bg-purple-650 hover:bg-purple-750 text-white text-xs py-2 px-4"
-              >
-                <Plus className="h-4 w-4" />
+            <div className="flex gap-2">
+              <Button onClick={() => setCreateModalOpen(true)} className="bg-purple-600 hover:bg-purple-750 text-white rounded-xl text-xs py-2 px-4 shadow-md flex items-center gap-1.5">
+                <Plus className="h-4.5 w-4.5" />
                 Create Project
               </Button>
             </div>
           </div>
 
-          {/* Grid list of dynamic project cards */}
-          <div className="grid md:grid-cols-3 gap-6">
-            {filteredProjects.map((p) => (
-              <div
-                key={p.id}
-                onClick={() => { setActiveProject(p); setActiveTab("Overview"); }}
-                className="p-5 rounded-3xl border bg-white/5 hover:border-purple-500/30 hover:scale-[1.01] transition-all duration-200 cursor-pointer flex flex-col justify-between h-64 relative group shadow-lg"
+          {/* Filter options bar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b pb-3" style={{ borderColor: T.border }}>
+            <div className="flex gap-1.5 overflow-x-auto w-full sm:w-auto">
+              {(["All", "Recent", "Favorites", "Shared", "Archived"] as const).map(filter => (
+                <button
+                  key={filter}
+                  onClick={() => setCurrentFilter(filter)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    currentFilter === filter 
+                      ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-3 items-center w-full sm:w-auto">
+              {/* Search */}
+              <div className="relative flex-1 sm:w-48">
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search workspace..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl text-xs bg-slate-900 border focus:outline-none placeholder-slate-500"
+                  style={{ borderColor: T.border, color: T.textPrimary }}
+                />
+              </div>
+
+              {/* Sort selector */}
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="px-3 py-2 rounded-xl text-xs bg-slate-900 border text-slate-400 focus:outline-none cursor-pointer"
                 style={{ borderColor: T.border }}
               >
-                <div>
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="h-10 w-10 rounded-2xl flex items-center justify-center text-purple-400" style={{ backgroundColor: `${p.color}15` }}>
-                      <FolderGit2 className="h-5.5 w-5.5" style={{ color: p.color }} />
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <button onClick={(e) => togglePinProject(p.id, e)} className="p-1 hover:bg-white/5 rounded">
-                        <Star className={`h-4.5 w-4.5 ${p.pinned ? "text-yellow-500 fill-yellow-500" : "text-slate-500"}`} />
-                      </button>
-                      <button onClick={(e) => deleteProject(p.id, e)} className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-red-500">
-                        <Trash2 className="h-4.5 w-4.5" />
-                      </button>
-                    </div>
-                  </div>
+                <option value="date">Sort: Date</option>
+                <option value="name">Sort: Name</option>
+                <option value="progress">Sort: RAG index</option>
+              </select>
 
-                  <h3 className="text-sm font-bold truncate mb-1.5" style={{ color: T.textPrimary }}>{p.name}</h3>
-                  <p className="text-slate-400 text-xs leading-relaxed line-clamp-3 mb-4">{p.desc}</p>
-                </div>
-
-                <div className="space-y-3 pt-3 border-t" style={{ borderColor: T.border }}>
-                  {/* Progress bar */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[8px] font-bold text-slate-500">
-                      <span>RAG Setup Progress</span>
-                      <span>{p.progress}%</span>
-                    </div>
-                    <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
-                      <div className="bg-purple-650 h-full" style={{ width: `${p.progress}%` }} />
-                    </div>
-                  </div>
-
-                  {/* Foot metadata */}
-                  <div className="flex items-center justify-between text-[9px] text-slate-500">
-                    <span className="flex items-center gap-1"><FileCheck className="h-3 w-3 text-purple-400" /> {p.filesCount} Files</span>
-                    <span className="flex items-center gap-1"><Layers className="h-3 w-3 text-cyan-400" /> {p.tokensUsed} Tokens</span>
-                    <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {p.date}</span>
-                  </div>
-                </div>
+              {/* Grid / List switchers */}
+              <div className="flex gap-1 border p-0.5 rounded-lg" style={{ borderColor: T.border }}>
+                <button onClick={() => setViewMode("grid")} className={`p-1 rounded ${viewMode === "grid" ? "bg-white/10 text-white" : "text-slate-400"}`}>
+                  <Grid className="h-3.5 w-3.5" />
+                </button>
+                <button onClick={() => setViewMode("list")} className={`p-1 rounded ${viewMode === "list" ? "bg-white/10 text-white" : "text-slate-400"}`}>
+                  <List className="h-3.5 w-3.5" />
+                </button>
               </div>
-            ))}
+            </div>
           </div>
+
+          {/* List/Grid rendering */}
+          {filteredProjects.length === 0 ? (
+            <div className="py-20 text-center border-2 border-dashed rounded-3xl" style={{ borderColor: T.border }}>
+              <FolderGit2 className="h-10 w-10 text-slate-500 mx-auto mb-3" />
+              <p className="text-xs text-slate-400 font-semibold">No workspaces match current queries</p>
+            </div>
+          ) : viewMode === "grid" ? (
+            <div className="grid md:grid-cols-3 gap-6 animate-fade-in">
+              {filteredProjects.map(p => (
+                <div
+                  key={p.id}
+                  onClick={() => { 
+                    setActiveProject(p); 
+                    setActiveTab("Files"); 
+                    setSelectedChatSessionId(p.chatHistory[0]?.id || "");
+                  }}
+                  className="p-5 rounded-3xl border bg-white/5 hover:border-purple-500/30 hover:scale-[1.01] transition-all duration-205 cursor-pointer flex flex-col justify-between h-64 relative group shadow-lg"
+                  style={{ borderColor: T.border }}
+                >
+                  <div>
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="h-10 w-10 rounded-2xl flex items-center justify-center text-purple-400" style={{ backgroundColor: `${p.color}15` }}>
+                        <FolderGit2 className="h-5.5 w-5.5" style={{ color: p.color }} />
+                      </div>
+                      <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={(e) => toggleStarProject(p.id, e)} className="p-1 hover:bg-white/5 rounded">
+                          <Star className={`h-4.5 w-4.5 ${p.starred ? "text-yellow-500 fill-yellow-500" : "text-slate-500"}`} />
+                        </button>
+                        <button onClick={(e) => toggleShareProject(p.id, e)} className="p-1 hover:bg-white/5 rounded">
+                          <Share2 className={`h-4.5 w-4.5 ${p.shared ? "text-cyan-400" : "text-slate-500"}`} />
+                        </button>
+                        <button onClick={(e) => deleteProject(p.id, e)} className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-red-500">
+                          <Trash2 className="h-4.5 w-4.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <h3 className="text-sm font-bold truncate mb-1" style={{ color: T.textPrimary }}>{p.name}</h3>
+                    <p className="text-slate-400 text-xs leading-relaxed line-clamp-3 mb-4">{p.desc}</p>
+                  </div>
+
+                  <div className="space-y-3 pt-3 border-t border-white/5">
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[8px] font-bold text-slate-500 uppercase tracking-wider">
+                        <span>RAG Context Setup</span>
+                        <span>{p.progress}%</span>
+                      </div>
+                      <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                        <div className="bg-purple-650 h-full" style={{ width: `${p.progress}%` }} />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[9px] text-slate-500">
+                      <span className="flex items-center gap-1"><FileCheck className="h-3 w-3 text-purple-400" /> {p.filesCount} Files</span>
+                      <span className="flex items-center gap-1"><Layers className="h-3 w-3 text-cyan-400" /> {p.tokensUsed} Tokens</span>
+                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {p.date}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="border rounded-2xl overflow-hidden shadow-sm animate-fade-in" style={{ borderColor: T.border }}>
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b text-slate-400 font-bold bg-white/5" style={{ borderColor: T.border }}>
+                    <th className="py-3 px-4">Workspace</th>
+                    <th className="py-3 px-2">Privacy</th>
+                    <th className="py-3 px-2">Category</th>
+                    <th className="py-3 px-2">Total Files</th>
+                    <th className="py-3 px-2">Size</th>
+                    <th className="py-3 px-4 w-12"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y text-slate-300" style={{ borderColor: T.border }}>
+                  {filteredProjects.map(p => (
+                    <tr 
+                      key={p.id} 
+                      onClick={() => { 
+                        setActiveProject(p); 
+                        setActiveTab("Files"); 
+                        setSelectedChatSessionId(p.chatHistory[0]?.id || "");
+                      }}
+                      className="hover:bg-slate-500/5 transition-colors cursor-pointer"
+                    >
+                      <td className="py-3 px-4 font-semibold text-slate-200">
+                        <span className="flex items-center gap-2.5">
+                          <FolderGit2 className="h-4.5 w-4.5" style={{ color: p.color }} />
+                          {p.name}
+                        </span>
+                      </td>
+                      <td className="py-3 px-2 text-slate-400">{p.privacy}</td>
+                      <td className="py-3 px-2">
+                        <span className="px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-400 text-[10px] font-bold">
+                          {p.category}
+                        </span>
+                      </td>
+                      <td className="py-3 px-2 text-slate-400">{p.filesCount} items</td>
+                      <td className="py-3 px-2 text-slate-400">{p.storageUsed}</td>
+                      <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                        <button onClick={(e) => deleteProject(p.id, e)} className="text-slate-500 hover:text-red-500 p-1">
+                          <Trash2 className="h-4.5 w-4.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       ) : (
         
-        /* PROJECT DETAILS: Workspace Area Mode */
-        <div className="space-y-6">
-          {/* Back to list dashboard header */}
+        /* DEDICATED ACTIVE PROJECT WORKSPACE SCREEN */
+        <div className="space-y-6 animate-fade-in">
+          
+          {/* Header area with back buttons and configs */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b" style={{ borderColor: T.border }}>
             <div className="flex items-center gap-3">
               <button 
@@ -627,35 +843,43 @@ export default function AIWorkspaceManager() {
               </button>
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-bold" style={{ color: T.textPrimary }}>{activeProject.name}</h1>
+                  <h1 className="text-lg font-bold" style={{ color: T.textPrimary }}>{activeProject.name}</h1>
                   <span className="px-2 py-0.5 rounded-full text-[8.5px] font-bold uppercase tracking-wider bg-purple-500/10 text-purple-400 border border-purple-500/20">{activeProject.status}</span>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">{activeProject.desc}</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 text-[10px] text-slate-400 font-semibold bg-white/5 border px-3.5 py-1.5 rounded-xl" style={{ borderColor: T.border }}>
-              <Cpu className="h-4 w-4 text-purple-400" />
-              <span>Model Config: {activeProject.model}</span>
+            <div className="flex gap-2">
+              <button onClick={(e) => toggleStarProject(activeProject.id, e)} className="p-2 border rounded-xl hover:bg-white/5" style={{ borderColor: T.border }}>
+                <Star className={`h-4.5 w-4.5 ${activeProject.starred ? "text-yellow-500 fill-yellow-500" : "text-slate-500"}`} />
+              </button>
+              <button onClick={(e) => toggleShareProject(activeProject.id, e)} className="p-2 border rounded-xl hover:bg-white/5" style={{ borderColor: T.border }}>
+                <Share2 className={`h-4.5 w-4.5 ${activeProject.shared ? "text-cyan-400" : "text-slate-500"}`} />
+              </button>
+              <div className="flex items-center gap-2 text-[10px] text-slate-400 font-semibold bg-white/5 border px-3 py-1.5 rounded-xl" style={{ borderColor: T.border }}>
+                <Cpu className="h-4 w-4 text-purple-400" />
+                <span>Model context: {activeProject.model}</span>
+              </div>
             </div>
           </div>
 
-          {/* Upload progress notifier inside workspace */}
+          {/* Upload progress banner inside workspace */}
           {isUploading && (
             <GlassCard className="p-4 border-purple-500/30 space-y-2">
               <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
                 <span>{uploadStage}</span>
                 <span>{uploadProgress}%</span>
               </div>
-              <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div className="w-full bg-slate-200 dark:bg-slate-850 h-1.5 rounded-full overflow-hidden">
                 <div className="bg-purple-650 h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
               </div>
             </GlassCard>
           )}
 
-          {/* Workspace Tabs Navigator */}
-          <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-thin border-b" style={{ borderColor: T.border }}>
-            {(["Overview", "Files", "AI Chat", "Quick Actions", "Generated Outputs", "History", "Analytics", "Settings"] as const).map(tab => (
+          {/* Workspace Tabs */}
+          <div className="flex gap-1.5 overflow-x-auto pb-2 border-b" style={{ borderColor: T.border }}>
+            {(["Files", "AI Workspace", "Chats", "Generated Outputs", "Knowledge Base", "Analytics", "Activity", "Settings"] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -670,100 +894,38 @@ export default function AIWorkspaceManager() {
             ))}
           </div>
 
-          {/* Tab Content Panels */}
-          
-          {/* TAB 1: OVERVIEW */}
-          {activeTab === "Overview" && (
-            <div className="grid md:grid-cols-12 gap-6">
-              <div className="md:col-span-8 space-y-6">
-                
-                {/* AI Workspace Suggestions */}
-                <GlassCard className="p-5 border-purple-500/20 bg-purple-500/5 space-y-2.5">
-                  <div className="flex items-center gap-2 text-xs font-bold text-purple-400">
-                    <Sparkles className="h-4 w-4 animate-pulse" />
-                    <span>ACT Copilot Suggestion</span>
-                  </div>
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    Based on files currently uploaded inside **{activeProject.name}**, you can generate a **Compliance Risk Assessment Matrix** or review liabilities cap from the SLA contracts. Navigate to **Quick Actions** tab to run in one-click.
-                  </p>
-                </GlassCard>
+          {/* TABS WORKSPACE RENDER PANEL */}
 
-                {/* Pinned / Recent Files */}
-                <div className="space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Recent Workspace Files</h3>
-                  <div className="space-y-2.5">
-                    {activeProject.files.length === 0 ? (
-                      <p className="text-xs text-slate-500 italic">No files in this project workspace yet. Go to Files tab to upload.</p>
-                    ) : (
-                      activeProject.files.slice(0, 3).map(f => (
-                        <div key={f.id} className="p-3.5 border rounded-2xl flex items-center justify-between bg-white/5" style={{ borderColor: T.border }}>
-                          <div className="flex items-center gap-3">
-                            <FileText className="h-4.5 w-4.5 text-purple-400 shrink-0" />
-                            <span className="text-xs font-bold text-white truncate max-w-[200px] sm:max-w-none">{f.name}</span>
-                          </div>
-                          <span className="text-[10px] text-slate-500 font-mono">{f.size}</span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Right Side Overview Stats */}
-              <div className="md:col-span-4 space-y-6">
-                <GlassCard className="p-4 space-y-4" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b pb-1" style={{ borderColor: T.border }}>Workspace Details</h3>
-                  
-                  <div className="space-y-3 text-[11px] text-slate-300">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Indexed Files:</span>
-                      <span className="font-bold">{activeProject.filesCount} files</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Storage Used:</span>
-                      <span className="font-bold">{activeProject.storageUsed}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Language:</span>
-                      <span className="font-bold">{activeProject.language}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Privacy:</span>
-                      <span className="font-bold">{activeProject.privacy}</span>
-                    </div>
-                  </div>
-                </GlassCard>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: FILES */}
+          {/* TAB 1: FILES */}
           {activeTab === "Files" && (
             <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">File Directory</h3>
-                <Button size="sm" onClick={() => fileInputRef.current?.click()} className="text-[10px] py-1 bg-purple-650 hover:bg-purple-750">
-                  <Upload className="h-3.5 w-3.5 mr-1" />
-                  Add File
-                </Button>
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Indexed Files Directory</h3>
+                
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => fileInputRef.current?.click()} className="text-[10px] py-1.5 bg-purple-650 hover:bg-purple-750 text-white">
+                    <Upload className="h-3.5 w-3.5 mr-1" />
+                    Upload Files
+                  </Button>
+                </div>
               </div>
 
               {activeProject.files.length === 0 ? (
-                <div className="p-12 text-center border-2 border-dashed rounded-3xl" style={{ borderColor: T.border }}>
+                <div className="p-16 text-center border border-dashed rounded-3xl" style={{ borderColor: T.border }}>
                   <FileText className="h-10 w-10 text-slate-500 mx-auto mb-3" />
-                  <p className="text-xs text-slate-400 font-semibold">No files uploaded inside this project workspace</p>
-                  <p className="text-[9.5px] text-slate-500 mt-1">Upload PDF, Word, Excel, media, or source code to compile embeddings.</p>
+                  <p className="text-xs text-slate-400 font-semibold">No files indexed in this workspace</p>
+                  <p className="text-[10px] text-slate-500 mt-1">Upload files to populate RAG Knowledge Base contexts.</p>
                 </div>
               ) : (
                 <div className="border rounded-2xl overflow-hidden shadow-sm" style={{ borderColor: T.border }}>
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="border-b text-slate-400 font-bold bg-white/5" style={{ borderColor: T.border }}>
-                        <th className="py-3 px-4">Name</th>
+                        <th className="py-3 px-4">File Name</th>
                         <th className="py-3 px-2">Size</th>
                         <th className="py-3 px-2">Type</th>
-                        <th className="py-3 px-2">Uploaded</th>
+                        <th className="py-3 px-2">Chunks</th>
+                        <th className="py-3 px-2">Pipeline Status</th>
                         <th className="py-3 px-4 w-12"></th>
                       </tr>
                     </thead>
@@ -778,7 +940,16 @@ export default function AIWorkspaceManager() {
                           </td>
                           <td className="py-3 px-2 text-slate-400">{f.size}</td>
                           <td className="py-3 px-2 font-mono text-[10px] text-purple-400">{f.type}</td>
-                          <td className="py-3 px-2 text-slate-400">{f.date}</td>
+                          <td className="py-3 px-2 font-mono text-slate-400">{f.chunksCount}</td>
+                          <td className="py-3 px-2">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                              f.status === "Ready" 
+                                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                                : "bg-purple-500/10 text-purple-400 border border-purple-500/20 animate-pulse"
+                            }`}>
+                              {f.status}
+                            </span>
+                          </td>
                           <td className="py-3 px-4">
                             <button onClick={() => removeWorkspaceFile(f.id)} className="text-slate-500 hover:text-red-500 p-1">
                               <Trash2 className="h-4 w-4" />
@@ -793,133 +964,188 @@ export default function AIWorkspaceManager() {
             </div>
           )}
 
-          {/* TAB 3: AI CHAT */}
-          {activeTab === "AI Chat" && (
-            <div className="border rounded-2xl h-[480px] flex flex-col justify-between overflow-hidden bg-white/5" style={{ borderColor: T.border }}>
-              
-              {/* Messages scroll frame */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {activeProject.chatHistory.map(msg => (
-                  <div 
-                    key={msg.id} 
-                    className={`flex items-start gap-3 max-w-2xl ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}
-                  >
-                    <div className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border ${
-                      msg.role === "user" ? "bg-purple-600/10 border-purple-500/20 text-purple-400" : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                    }`}>
-                      {msg.role === "user" ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
-                    </div>
-                    <div className="space-y-1">
-                      <div className={`rounded-xl p-3 text-xs leading-relaxed border ${
-                        msg.role === "user" ? "bg-purple-600 text-white border-purple-700" : "bg-slate-900 border-white/5 text-slate-100"
-                      }`}>
-                        <p className="whitespace-pre-wrap">{msg.content}</p>
-                      </div>
-                      <span className="text-[8.5px] text-slate-500 block px-1 text-right">{msg.time}</span>
-                    </div>
+          {/* TAB 2: AI WORKSPACE */}
+          {activeTab === "AI Workspace" && (
+            <div className="grid md:grid-cols-12 gap-6">
+              <div className="md:col-span-8 space-y-4">
+                
+                {/* RAG Context status */}
+                <GlassCard className="p-4 border-purple-500/20 bg-purple-500/5 flex items-center gap-3">
+                  <Brain className="h-5 w-5 text-purple-400 shrink-0" />
+                  <div>
+                    <h4 className="text-xs font-bold text-white">Active RAG context enabled</h4>
+                    <p className="text-[10px] text-slate-400">
+                      All queries run inside **{activeProject.name}** are automatically cross-referenced with your uploaded file assets.
+                    </p>
                   </div>
-                ))}
+                </GlassCard>
+
+                {/* Prompt block */}
+                <GlassCard className="p-5 space-y-4" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+                  <textarea
+                    value={workspacePrompt}
+                    onChange={(e) => setWorkspacePrompt(e.target.value)}
+                    placeholder="Ask AI Workspace: 'Compare document A and B', 'Summarize meeting timelines'..."
+                    className="w-full p-3 rounded-xl border bg-slate-900 text-xs focus:outline-none"
+                    style={{ borderColor: T.border, color: T.textPrimary }}
+                    rows={4}
+                  />
+
+                  <div className="flex justify-end">
+                    <Button onClick={handleWorkspaceQuery} disabled={workspaceAiLoading} className="bg-purple-600 hover:bg-purple-750 text-xs text-white">
+                      {workspaceAiLoading ? "Processing RAG..." : "Query AI Workspace"}
+                    </Button>
+                  </div>
+                </GlassCard>
+
+                {/* Output review area */}
+                {workspaceResponse && (
+                  <GlassCard className="p-5 space-y-3" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+                    <div className="flex justify-between items-center border-b pb-2" style={{ borderColor: T.border }}>
+                      <span className="text-[10px] font-bold text-purple-400">RAG RESPONSE OUTPUT</span>
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(workspaceResponse);
+                          alert("Response copied to clipboard!");
+                        }}
+                        className="text-[9px] text-slate-400 hover:text-white"
+                      >
+                        Copy Response
+                      </button>
+                    </div>
+                    <div className="font-mono text-xs text-slate-200 whitespace-pre-wrap leading-relaxed">
+                      {workspaceResponse}
+                    </div>
+                  </GlassCard>
+                )}
+
               </div>
 
-              {/* Chat Input bar */}
-              <div className="p-3 border-t bg-slate-950/60 flex items-center gap-2" style={{ borderColor: T.border }}>
-                <button
-                  onClick={toggleVoiceInput}
-                  className={`p-1.5 rounded-lg border transition-all ${isVoiceActive ? "text-red-500 border-red-500/30" : "text-slate-500 hover:text-white"}`}
-                  style={{ borderColor: T.border }}
-                >
-                  {isVoiceActive ? <MicOff className="h-4 w-4 animate-pulse" /> : <Mic className="h-4 w-4" />}
-                </button>
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Ask questions referencing uploaded project files..."
-                  className="flex-1 bg-transparent text-xs focus:outline-none text-white placeholder-slate-500"
-                  onKeyDown={(e) => { if (e.key === "Enter") handleSendWorkspaceChat(); }}
-                />
-                <Button size="sm" onClick={handleSendWorkspaceChat} className="bg-purple-650 hover:bg-purple-750 text-white text-xs py-1 px-3">
-                  <Send className="h-3.5 w-3.5" />
-                </Button>
+              {/* Sidebar Quick prompt suggestions */}
+              <div className="md:col-span-4 space-y-4">
+                <GlassCard className="p-4 space-y-3" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Suggested Queries</h4>
+                  <div className="space-y-2">
+                    {[
+                      "Summarize all files.",
+                      "Find contradictions in SLA guidelines.",
+                      "Extract key milestones and timelines.",
+                      "Explain code functions inside repo."
+                    ].map(q => (
+                      <button
+                        key={q}
+                        onClick={() => setWorkspacePrompt(q)}
+                        className="w-full text-left p-2.5 rounded-xl border text-[10px] text-slate-300 hover:border-purple-500/40 hover:bg-purple-500/5 transition-all"
+                        style={{ borderColor: T.border }}
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </GlassCard>
               </div>
 
             </div>
           )}
 
-          {/* TAB 4: QUICK ACTIONS */}
-          {activeTab === "Quick Actions" && (
-            <GlassCard className="p-5 space-y-6" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
-              <div className="flex items-center gap-2 border-b pb-2" style={{ borderColor: T.border }}>
-                <Zap className="h-4.5 w-4.5 text-purple-400" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Run Quick AI Workflows</h3>
+          {/* TAB 3: CHATS */}
+          {activeTab === "Chats" && (
+            <div className="grid md:grid-cols-12 gap-6 items-stretch">
+              
+              {/* Left sessions column */}
+              <div className="md:col-span-3 space-y-3">
+                <Button onClick={createNewChatSession} className="w-full border text-xs py-2 bg-purple-650 hover:bg-purple-750">
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  New Chat Session
+                </Button>
+                
+                <div className="space-y-1.5 max-h-96 overflow-y-auto">
+                  {activeProject.chatHistory.map(session => (
+                    <button
+                      key={session.id}
+                      onClick={() => setSelectedChatSessionId(session.id)}
+                      className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                        selectedChatSessionId === session.id 
+                          ? "bg-purple-500/10 border-purple-500/40 text-purple-400 font-bold" 
+                          : "bg-white/5 border-white/5 text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <span className="block truncate">{session.title}</span>
+                      <span className="text-[9px] text-slate-500 font-mono block mt-0.5">{session.messages.length} messages</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                
-                {/* File Select */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase">Target Project File</label>
-                  <select
-                    value={selectedActionFile}
-                    onChange={(e) => setSelectedActionFile(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl text-xs bg-slate-900 border border-white/10 text-white focus:outline-none focus:border-purple-500 cursor-pointer"
-                  >
-                    <option value="">Select a file...</option>
-                    {activeProject.files.map(f => (
-                      <option key={f.id} value={f.id}>{f.name}</option>
-                    ))}
-                  </select>
+              {/* Message panel area */}
+              <div className="md:col-span-9 border rounded-2xl h-[480px] flex flex-col justify-between overflow-hidden bg-white/5" style={{ borderColor: T.border }}>
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {selectedSessionMessages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs">
+                      <MessageSquare className="h-8 w-8 mb-2" />
+                      <p>Start a new dialogue session inside this RAG project</p>
+                    </div>
+                  ) : (
+                    selectedSessionMessages.map(msg => (
+                      <div 
+                        key={msg.id} 
+                        className={`flex items-start gap-3 max-w-2xl ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}
+                      >
+                        <div className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border ${
+                          msg.role === "user" ? "bg-purple-600/10 border-purple-500/20 text-purple-400" : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                        }`}>
+                          {msg.role === "user" ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
+                        </div>
+                        <div className="space-y-1">
+                          <div className={`rounded-xl p-3 text-xs leading-relaxed border ${
+                            msg.role === "user" ? "bg-purple-600 text-white border-purple-700" : "bg-slate-900 border-white/5 text-slate-100"
+                          }`}>
+                            <p className="whitespace-pre-wrap">{msg.content}</p>
+                          </div>
+                          <span className="text-[8.5px] text-slate-500 block px-1 text-right">{msg.time}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
 
-                {/* Workflow Select */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase">Action Preset</label>
-                  <select
-                    value={selectedActionPreset}
-                    onChange={(e) => setSelectedActionPreset(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl text-xs bg-slate-900 border border-white/10 text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+                {/* Input panel bar */}
+                <div className="p-3 border-t bg-slate-950/60 flex items-center gap-2" style={{ borderColor: T.border }}>
+                  <button
+                    onClick={toggleVoiceInput}
+                    className={`p-1.5 rounded-lg border transition-all ${isVoiceActive ? "text-red-500 border-red-500/30" : "text-slate-500 hover:text-white"}`}
+                    style={{ borderColor: T.border }}
                   >
-                    <option value="summary">Summarize (Professional Abstract)</option>
-                    <option value="translate">Translate to English</option>
-                    <option value="flashcards">Generate study Q&A Flashcards</option>
-                    <option value="minutes">Minutes of Meeting (MoM)</option>
-                    <option value="actions">Extract Action Items Checklist</option>
-                    <option value="timeline">Chronological Event Timeline</option>
-                    <option value="bugs">Find Bugs & Vulnerabilities (Code Only)</option>
-                  </select>
-                </div>
-
-                {/* Custom system prompt instruction override */}
-                <div className="sm:col-span-2 space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase">Optional Custom Instruction Override</label>
+                    {isVoiceActive ? <MicOff className="h-4 w-4 animate-pulse" /> : <Mic className="h-4 w-4" />}
+                  </button>
                   <input
                     type="text"
-                    value={customActionPrompt}
-                    onChange={(e) => setCustomActionPrompt(e.target.value)}
-                    placeholder="Focus strictly on pricing terms, extract only function signatures..."
-                    className="w-full px-3 py-2.5 rounded-xl text-xs bg-slate-900 border border-white/10 text-white focus:outline-none"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Query AI with RAG scope context..."
+                    className="flex-1 bg-transparent text-xs focus:outline-none text-white"
+                    onKeyDown={(e) => { if (e.key === "Enter") handleSendChat(); }}
                   />
+                  <Button size="sm" onClick={handleSendChat} className="bg-purple-650 hover:bg-purple-750 text-white text-xs py-1 px-3">
+                    <Send className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
-
               </div>
 
-              <Button onClick={handleExecuteQuickAction} className="w-full bg-purple-600 hover:bg-purple-700 text-xs py-2">
-                Execute AI Workflow
-              </Button>
-            </GlassCard>
+            </div>
           )}
 
-          {/* TAB 5: GENERATED OUTPUTS */}
+          {/* TAB 4: GENERATED OUTPUTS */}
           {activeTab === "Generated Outputs" && (
             <div className="space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Generated Reports</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Saved Transformation Outputs</h3>
               
               {activeProject.outputs.length === 0 ? (
-                <p className="text-xs text-slate-500 italic">No outputs compiled yet. Run a Quick Action to save transformed results.</p>
+                <p className="text-xs text-slate-500 italic">No output files generated yet. Run RAG query transforms to generate items.</p>
               ) : (
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid md:grid-cols-2 gap-4 animate-fade-in">
                   {activeProject.outputs.map(out => (
-                    <GlassCard key={out.id} className="p-4 space-y-3 flex flex-col justify-between" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+                    <GlassCard key={out.id} className="p-4 flex flex-col justify-between" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
                       <div>
                         <div className="flex justify-between items-center mb-2">
                           <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[8px] font-bold uppercase">{out.preset}</span>
@@ -931,7 +1157,7 @@ export default function AIWorkspaceManager() {
                         </div>
                       </div>
 
-                      <div className="pt-2 flex justify-end gap-2 border-t border-white/5">
+                      <div className="pt-3 border-t border-white/5 mt-3 flex justify-end gap-2">
                         <Button
                           onClick={() => {
                             const blob = new Blob([out.content], { type: "text/markdown" });
@@ -945,7 +1171,7 @@ export default function AIWorkspaceManager() {
                           className="text-[9px] py-1 px-2.5"
                         >
                           <Download className="h-3 w-3 mr-1" />
-                          Download Markdown
+                          Download
                         </Button>
                       </div>
                     </GlassCard>
@@ -955,42 +1181,121 @@ export default function AIWorkspaceManager() {
             </div>
           )}
 
-          {/* TAB 6: HISTORY */}
-          {activeTab === "History" && (
-            <div className="space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Chronological Event logs</h3>
+          {/* TAB 5: KNOWLEDGE BASE */}
+          {activeTab === "Knowledge Base" && (
+            <div className="grid md:grid-cols-12 gap-6">
               
-              <div className="space-y-2 border-l-2 border-purple-500/20 pl-4 font-mono text-[10px] text-slate-400">
-                {activeProject.history.map(hist => (
-                  <div key={hist.id} className="py-1">
-                    <span className="text-purple-400 font-bold">[{hist.date}]</span>
-                    <span className="ml-2 text-slate-500 font-bold uppercase">{hist.type}:</span>
-                    <span className="ml-2 text-slate-300">{hist.detail}</span>
+              <div className="md:col-span-8 space-y-6">
+                <GlassCard className="p-5 space-y-4" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+                  <div className="flex justify-between items-center border-b pb-2" style={{ borderColor: T.border }}>
+                    <div className="flex items-center gap-2">
+                      <Database className="h-4.5 w-4.5 text-purple-400" />
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">Vector Store Status</h4>
+                    </div>
+                    <button 
+                      onClick={rebuildEmbeddings}
+                      className="text-[9px] text-purple-400 hover:text-white flex items-center gap-1"
+                    >
+                      <RefreshCcw className="h-3 w-3" />
+                      Rebuild Embeddings
+                    </button>
                   </div>
-                ))}
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                    <div className="p-3 bg-slate-900 rounded-xl border border-white/5">
+                      <span className="block text-[8px] text-slate-500 uppercase font-bold">RAG Health</span>
+                      <span className="text-xs font-bold text-emerald-400">98.4%</span>
+                    </div>
+                    <div className="p-3 bg-slate-900 rounded-xl border border-white/5">
+                      <span className="block text-[8px] text-slate-500 uppercase font-bold">Indexed Documents</span>
+                      <span className="text-xs font-bold text-white">{activeProject.filesCount}</span>
+                    </div>
+                    <div className="p-3 bg-slate-900 rounded-xl border border-white/5">
+                      <span className="block text-[8px] text-slate-500 uppercase font-bold">Vector Chunks</span>
+                      <span className="text-xs font-bold text-cyan-400">
+                        {activeProject.files.reduce((acc, curr) => acc + curr.chunksCount, 0)}
+                      </span>
+                    </div>
+                    <div className="p-3 bg-slate-900 rounded-xl border border-white/5">
+                      <span className="block text-[8px] text-slate-500 uppercase font-bold">Token Load</span>
+                      <span className="text-xs font-bold text-purple-400">{activeProject.tokensUsed}</span>
+                    </div>
+                  </div>
+                </GlassCard>
+
+                {/* Chunks inspector listing */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Knowledge Base chunks preview</h3>
+                  <div className="space-y-2">
+                    {activeProject.files.map(f => (
+                      <div key={f.id} className="p-4 border rounded-2xl bg-white/5" style={{ borderColor: T.border }}>
+                        <div className="flex justify-between items-center border-b pb-2 mb-2" style={{ borderColor: T.border }}>
+                          <span className="text-xs font-bold text-white">{f.name}</span>
+                          <span className="text-[10px] text-slate-500">{f.chunksCount} chunks mapped</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 italic">
+                          Previewing chunk #1: "Semantic vectorized mapping of SLA boundaries and target execution timelines for Acme platform integration."
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
               </div>
+
+              <div className="md:col-span-4 space-y-4">
+                <GlassCard className="p-4 space-y-3" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-4.5 w-4.5 text-purple-400" />
+                    <h4 className="text-xs font-bold text-white">Compliance & Security</h4>
+                  </div>
+                  <p className="text-[9.5px] text-slate-400 leading-relaxed">
+                    Embeddings are compiled locally. High latency text files are parsed in background parallel nodes to save token overhead limit.
+                  </p>
+                </GlassCard>
+              </div>
+
             </div>
           )}
 
-          {/* TAB 7: ANALYTICS */}
+          {/* TAB 6: ANALYTICS */}
           {activeTab === "Analytics" && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-fade-in">
               <GlassCard className="p-4 text-center space-y-1.5" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
-                <p className="text-[9px] text-slate-500 uppercase font-bold">Total Tokens Ingested</p>
-                <p className="text-xl font-bold font-mono text-purple-400">{activeProject.tokensUsed}</p>
+                <p className="text-[9px] text-slate-500 uppercase font-bold">Knowledge Base Size</p>
+                <p className="text-xl font-bold font-mono text-purple-400">{activeProject.tokensUsed} tokens</p>
               </GlassCard>
               <GlassCard className="p-4 text-center space-y-1.5" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
-                <p className="text-[9px] text-slate-500 uppercase font-bold">File Directory Storage</p>
+                <p className="text-[9px] text-slate-500 uppercase font-bold">Indexed storage size</p>
                 <p className="text-xl font-bold font-mono text-cyan-400">{activeProject.storageUsed}</p>
               </GlassCard>
               <GlassCard className="p-4 text-center space-y-1.5" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
-                <p className="text-[9px] text-slate-500 uppercase font-bold">Actions Run</p>
-                <p className="text-xl font-bold font-mono text-emerald-400">{activeProject.outputs.length} actions</p>
+                <p className="text-[9px] text-slate-500 uppercase font-bold">Total quick outputs</p>
+                <p className="text-xl font-bold font-mono text-emerald-400">{activeProject.outputs.length} outputs</p>
               </GlassCard>
               <GlassCard className="p-4 text-center space-y-1.5" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
-                <p className="text-[9px] text-slate-500 uppercase font-bold">Conversations log</p>
-                <p className="text-xl font-bold font-mono text-yellow-400">{activeProject.chatHistory.length} messages</p>
+                <p className="text-[9px] text-slate-500 uppercase font-bold">Total query sessions</p>
+                <p className="text-xl font-bold font-mono text-yellow-400">{activeProject.chatHistory.length} sessions</p>
               </GlassCard>
+            </div>
+          )}
+
+          {/* TAB 7: ACTIVITY */}
+          {activeTab === "Activity" && (
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Workspace Activity Timeline</h3>
+              
+              <div className="border-l-2 border-purple-500/20 pl-4 space-y-3">
+                {activeProject.history.map(hist => (
+                  <div key={hist.id} className="relative py-1">
+                    <span className="text-[9px] font-mono text-purple-400 font-bold block">[{hist.date}]</span>
+                    <span className="text-xs text-slate-200 mt-1 block">
+                      <strong className="text-purple-400 uppercase mr-1.5">[{hist.type}]</strong> 
+                      {hist.detail}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -999,41 +1304,39 @@ export default function AIWorkspaceManager() {
             <GlassCard className="p-5 space-y-6" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
               <div className="flex items-center gap-2 border-b pb-2" style={{ borderColor: T.border }}>
                 <Settings className="h-4.5 w-4.5 text-slate-400" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Workspace Settings</h3>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Workspace Management Settings</h3>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase">Rename Workspace</label>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Rename Project Workspace</label>
                   <input
                     type="text"
                     value={activeProject.name}
                     onChange={(e) => {
                       const updatedProj = { ...activeProject, name: e.target.value };
                       setActiveProject(updatedProj);
-                      const updatedProjList = projects.map(p => p.id === activeProject.id ? updatedProj : p);
-                      saveProjects(updatedProjList);
+                      const updatedList = projects.map(p => p.id === activeProject.id ? updatedProj : p);
+                      saveProjects(updatedList);
                     }}
                     className="w-full px-3 py-2 rounded-xl text-xs bg-slate-900 border border-white/10 text-white focus:outline-none"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase">AI Model Selector</label>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Privacy Settings</label>
                   <select
-                    value={activeProject.model}
+                    value={activeProject.privacy}
                     onChange={(e) => {
-                      const updatedProj = { ...activeProject, model: e.target.value };
+                      const updatedProj = { ...activeProject, privacy: e.target.value as any };
                       setActiveProject(updatedProj);
-                      const updatedProjList = projects.map(p => p.id === activeProject.id ? updatedProj : p);
-                      saveProjects(updatedProjList);
+                      const updatedList = projects.map(p => p.id === activeProject.id ? updatedProj : p);
+                      saveProjects(updatedList);
                     }}
-                    className="w-full px-3 py-2 rounded-xl text-xs bg-slate-900 border border-white/10 text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl text-xs bg-slate-900 border border-white/10 text-white focus:outline-none cursor-pointer"
                   >
-                    <option value="Gemini Pro">Gemini Pro</option>
-                    <option value="GPT-4o">GPT-4o</option>
-                    <option value="Cohere">Cohere Command R+</option>
-                    <option value="Claude 3.5">Claude 3.5</option>
+                    <option value="Private">Private</option>
+                    <option value="Team">Team Shared</option>
                   </select>
                 </div>
               </div>
@@ -1044,8 +1347,8 @@ export default function AIWorkspaceManager() {
                     if (confirm("Archive this project workspace?")) {
                       const updatedProj = { ...activeProject, status: "Archived" as const };
                       setActiveProject(updatedProj);
-                      const updatedProjList = projects.map(p => p.id === activeProject.id ? updatedProj : p);
-                      saveProjects(updatedProjList);
+                      const updatedList = projects.map(p => p.id === activeProject.id ? updatedProj : p);
+                      saveProjects(updatedList);
                     }
                   }}
                   variant="outline" 
@@ -1073,15 +1376,15 @@ export default function AIWorkspaceManager() {
 
       )}
 
-      {/* Create Project Workspace Modal */}
+      {/* Premium Create Project modal popup */}
       {createModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <GlassCard className="max-w-md w-full p-6 space-y-4 border-slate-200 bg-white" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
             
             <div className="flex justify-between items-center border-b pb-3" style={{ borderColor: T.border }}>
               <div className="flex items-center gap-2">
-                <FolderPlus className="h-5 w-5 text-purple-400" />
-                <h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>Create AI Workspace Project</h3>
+                <FolderGit2 className="h-5 w-5 text-purple-400" />
+                <h3 className="text-sm font-bold animate-pulse" style={{ color: T.textPrimary }}>Create Project Workspace</h3>
               </div>
               <button onClick={() => setCreateModalOpen(false)} className="text-slate-400 hover:text-white">
                 <X className="h-5 w-5" />
@@ -1089,7 +1392,6 @@ export default function AIWorkspaceManager() {
             </div>
 
             <div className="space-y-4">
-              {/* Project Name */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Project Name</label>
                 <input
@@ -1102,7 +1404,6 @@ export default function AIWorkspaceManager() {
                 />
               </div>
 
-              {/* Description */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Description</label>
                 <input
@@ -1115,7 +1416,6 @@ export default function AIWorkspaceManager() {
                 />
               </div>
 
-              {/* Grid of properties */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-400 uppercase">Theme Color</label>
@@ -1135,43 +1435,30 @@ export default function AIWorkspaceManager() {
                     className="w-full px-3 py-2.5 rounded-xl text-xs focus:outline-none border cursor-pointer"
                     style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
                   >
-                    <option value="Business" style={{ backgroundColor: T.bgCard }}>Business</option>
-                    <option value="Education" style={{ backgroundColor: T.bgCard }}>Education</option>
-                    <option value="Legal" style={{ backgroundColor: T.bgCard }}>Legal</option>
-                    <option value="Healthcare" style={{ backgroundColor: T.bgCard }}>Healthcare</option>
-                    <option value="Marketing" style={{ backgroundColor: T.bgCard }}>Marketing</option>
+                    <option value="Business">Business</option>
+                    <option value="Education">Education</option>
+                    <option value="Legal">Legal</option>
+                    <option value="Healthcare">Healthcare</option>
+                    <option value="Marketing">Marketing</option>
                   </select>
                 </div>
               </div>
 
-              {/* Privacy */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Privacy Settings</label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setNewProjPrivacy("Private")}
-                    className={`flex-1 py-2 text-xs font-semibold rounded-xl border transition-all ${
-                      newProjPrivacy === "Private" ? "bg-purple-600 border-purple-700 text-white" : "text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    Private
-                  </button>
-                  <button
-                    onClick={() => setNewProjPrivacy("Team")}
-                    className={`flex-1 py-2 text-xs font-semibold rounded-xl border transition-all ${
-                      newProjPrivacy === "Team" ? "bg-purple-600 border-purple-700 text-white" : "text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    Team Shared
-                  </button>
-                </div>
+              <div className="flex items-center justify-between p-2.5 border rounded-xl" style={{ borderColor: T.border }}>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Enable RAG Processing</span>
+                <input
+                  type="checkbox"
+                  checked={newProjEnableRag}
+                  onChange={(e) => setNewProjEnableRag(e.target.checked)}
+                  className="h-4 w-4 cursor-pointer text-purple-600 border-slate-350 rounded"
+                />
               </div>
 
             </div>
 
             <div className="pt-3 border-t flex justify-end gap-2.5" style={{ borderColor: T.border }}>
               <Button variant="outline" size="sm" onClick={() => setCreateModalOpen(false)}>Cancel</Button>
-              <Button size="sm" onClick={handleCreateProject} className="bg-purple-600 hover:bg-purple-700">Create Project</Button>
+              <Button size="sm" onClick={handleCreateProject} className="bg-purple-650 hover:bg-purple-750 text-white">Create Project</Button>
             </div>
 
           </GlassCard>
@@ -1181,4 +1468,3 @@ export default function AIWorkspaceManager() {
     </div>
   );
 }
-
