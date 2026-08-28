@@ -20,6 +20,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [hasBiometric, setHasBiometric] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState<"fingerprint" | "face" | null>(null);
 
   // Styling maps matching both interfaces
   const bgStyle = isDark
@@ -36,7 +37,7 @@ export default function LoginPage() {
   const inputBg = isDark ? "#0e1c33" : "#f0fdf4";
   const inputBorder = isDark ? "#1a3a6e" : "#bbf0bb";
   const inputColor = isDark ? "#ffffff" : "#0d2d0d";
-  
+
   const primaryButtonBg = isDark
     ? "linear-gradient(135deg, #2563eb, #3b82f6)"
     : "linear-gradient(135deg, #16a34a, #22c55e)";
@@ -142,7 +143,7 @@ export default function LoginPage() {
 
   const handleGoogleLogin = () => {
     setLoading(true);
-    const clientId = "1082260655823-uprqdfsl9n2g01i4g5n9h69u8qf9o7vj.apps.googleusercontent.com";
+    const clientId = "864145644862-ihb2hgqcnv7oc2hgr9jc2mjtom4q1n6c.apps.googleusercontent.com";
     const redirectUri = window.location.origin + "/auth/login";
     const targetUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=email%20profile&prompt=select_account`;
     window.location.href = targetUrl;
@@ -151,7 +152,7 @@ export default function LoginPage() {
   // WebAuthn Browser Biometric login (Face ID / Fingerprint / Windows Hello)
   const handleBiometricLogin = async (type: "fingerprint" | "face") => {
     setError("");
-    setLoading(true);
+    setBiometricLoading(type);
     try {
       if (window.PublicKeyCredential) {
         const challenge = new Uint8Array(32);
@@ -180,28 +181,43 @@ export default function LoginPage() {
     } catch (err: any) {
       console.error(err);
       setError("Biometric verification failed: " + err.message);
-      setLoading(false);
+      setBiometricLoading(null);
     }
   };
 
   const logInBiometricUser = () => {
     const biometricUser = localStorage.getItem("act_biometric_user") || "biometric_guest@act.com";
-    const storedUser = localStorage.getItem("act_user");
-    
-    const userObj = storedUser ? JSON.parse(storedUser) : {
-      id: `biometric_${Date.now()}`,
-      name: biometricUser.split("@")[0],
-      email: biometricUser,
-      organization: "",
-      role: "User",
-      plan: "Free",
-      bio: "",
-      createdAt: new Date().toISOString(),
-      lastLogin: new Date().toISOString(),
-      achievements: [],
-    };
+    const storedUserRaw = localStorage.getItem("act_user");
+
+    let userObj = null;
+    if (storedUserRaw) {
+      try {
+        const parsed = JSON.parse(storedUserRaw);
+        if (parsed && parsed.email && parsed.email.trim().toLowerCase() === biometricUser.trim().toLowerCase()) {
+          userObj = parsed;
+        }
+      } catch (err) {
+        console.error("Error parsing stored user:", err);
+      }
+    }
+
+    if (!userObj) {
+      userObj = {
+        id: `biometric_${Date.now()}`,
+        name: biometricUser.split("@")[0],
+        email: biometricUser,
+        organization: "",
+        role: "User",
+        plan: "Free",
+        bio: "",
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        achievements: [],
+      };
+    }
 
     login(userObj);
+    setBiometricLoading(null);
     setLoading(false);
     router.push("/dashboard");
   };
@@ -386,34 +402,34 @@ export default function LoginPage() {
             <p className="text-[10px] text-center uppercase tracking-wider font-semibold mb-2" style={{ color: descColor }}>
               Secure Device Sign In
             </p>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => handleBiometricLogin("fingerprint")}
-                className="py-2.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 text-[10px] font-semibold transition-all hover:bg-slate-100/5"
+                className="py-2.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 text-[10px] font-semibold transition-all hover:bg-slate-100/5 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
                 style={{ backgroundColor: inputBg, borderColor: inputBorder, color: inputColor }}
+                disabled={biometricLoading !== null}
               >
-                <Fingerprint className="h-4 w-4 text-purple-400" />
+                {biometricLoading === "fingerprint" ? (
+                  <span className="h-4 w-4 rounded-full border-2 border-purple-400 border-t-transparent animate-spin" />
+                ) : (
+                  <Fingerprint className="h-4 w-4 text-purple-400" />
+                )}
                 Fingerprint
               </button>
               <button
                 type="button"
                 onClick={() => handleBiometricLogin("face")}
-                className="py-2.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 text-[10px] font-semibold transition-all hover:bg-slate-100/5"
+                className="py-2.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 text-[10px] font-semibold transition-all hover:bg-slate-100/5 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
                 style={{ backgroundColor: inputBg, borderColor: inputBorder, color: inputColor }}
+                disabled={biometricLoading !== null}
               >
-                <ScanFace className="h-4 w-4 text-cyan-400" />
+                {biometricLoading === "face" ? (
+                  <span className="h-4 w-4 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
+                ) : (
+                  <ScanFace className="h-4 w-4 text-cyan-400" />
+                )}
                 Face ID
-              </button>
-              <button
-                type="button"
-                onClick={() => handleBiometricLogin("face")}
-                className="py-2.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 text-[10px] font-semibold transition-all hover:bg-slate-100/5"
-                style={{ backgroundColor: inputBg, borderColor: inputBorder, color: inputColor }}
-                title="Windows Hello (Windows laptop security)"
-              >
-                <Laptop className="h-4 w-4 text-amber-400" />
-                Hello
               </button>
             </div>
           </div>

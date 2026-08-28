@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useTheme } from "@/contexts/ThemeContext";
 import Link from "next/link";
 import { 
   Sparkles, 
@@ -46,6 +47,25 @@ const DEMO_TRANSFORMS = [
 export default function LandingPage() {
   const [activeDemo, setActiveDemo] = useState(DEMO_TRANSFORMS[0]);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const { isDark } = useTheme();
+
+  // Dynamic theme colors matching Light Theme requirements & Dark Theme overrides
+  const pageBg = isDark ? "#060d1a" : "#f0fdf4";
+  const headerBg = isDark ? "#0b1628" : "#ffffff";
+  const headerBorder = isDark ? "1.5px solid #1a3a6e" : "1.5px solid #bbf0bb";
+  const navLinkColor = isDark ? "#94a3b8" : "#4b7a4b";
+  const navLinkHoverColor = isDark ? "#3b82f6" : "#16a34a";
+  const loginLinkColor = isDark ? "#3b82f6" : "#16a34a";
+  const logoTextColor = isDark ? "#ffffff" : "#0d2d0d";
+  
+  const heroBg = isDark 
+    ? "linear-gradient(160deg, #060d1a 0%, #0b1628 60%, #060d1a 100%)" 
+    : "linear-gradient(160deg, #f0fdf4 0%, #dcfce7 60%, #f0fdf4 100%)";
+  
+  const heroHeadingColor = isDark ? "#ffffff" : "#000000";
+  const heroSpanColor = isDark ? "#60a5fa" : "#16a34a";
+  const primaryBodyColor = isDark ? "#e2e8f0" : "#374151"; 
+  const secondaryTextColor = isDark ? "#94a3b8" : "#4b7a4b";
 
   const faqs = [
     {
@@ -67,33 +87,33 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen" style={{ backgroundColor: '#f0fdf4' }}>
+    <div className="flex-1 flex flex-col min-h-screen transition-all duration-300" style={{ backgroundColor: pageBg }}>
       {/* Top Navigation */}
-      <header className="sticky top-0 z-50" style={{ backgroundColor: '#ffffff', borderBottom: '1.5px solid #bbf0bb' }}>
+      <header className="sticky top-0 z-50 transition-all duration-300" style={{ backgroundColor: headerBg, borderBottom: headerBorder }}>
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="h-9 w-9 rounded-xl overflow-hidden">
               <img src="/logo.png" alt="ACT Logo" className="h-full w-full object-cover" />
             </div>
-            <span className="text-xl font-bold tracking-tight" style={{ color: '#0d2d0d' }}>
+            <span className="text-xl font-bold tracking-tight" style={{ color: logoTextColor }}>
               ACT
             </span>
           </div>
 
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium" style={{ color: '#4b7a4b' }}>
-            <a href="#features" className="transition-colors" style={{ color: '#4b7a4b' }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.color='#16a34a'} onMouseLeave={e => (e.currentTarget as HTMLElement).style.color='#4b7a4b'}>Features</a>
-            <a href="#showcase" className="transition-colors" style={{ color: '#4b7a4b' }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.color='#16a34a'} onMouseLeave={e => (e.currentTarget as HTMLElement).style.color='#4b7a4b'}>Showcase</a>
-            <a href="#how-it-works" className="transition-colors" style={{ color: '#4b7a4b' }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.color='#16a34a'} onMouseLeave={e => (e.currentTarget as HTMLElement).style.color='#4b7a4b'}>How It Works</a>
-            <a href="#pricing" className="transition-colors" style={{ color: '#4b7a4b' }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.color='#16a34a'} onMouseLeave={e => (e.currentTarget as HTMLElement).style.color='#4b7a4b'}>Pricing</a>
-            <a href="#faq" className="transition-colors" style={{ color: '#4b7a4b' }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.color='#16a34a'} onMouseLeave={e => (e.currentTarget as HTMLElement).style.color='#4b7a4b'}>FAQ</a>
+          <nav className="hidden md:flex items-center gap-8 text-sm font-medium" style={{ color: navLinkColor }}>
+            <a href="#features" className="transition-colors" style={{ color: navLinkColor }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.color=navLinkHoverColor} onMouseLeave={e => (e.currentTarget as HTMLElement).style.color=navLinkColor}>Features</a>
+            <a href="#showcase" className="transition-colors" style={{ color: navLinkColor }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.color=navLinkHoverColor} onMouseLeave={e => (e.currentTarget as HTMLElement).style.color=navLinkColor}>Showcase</a>
+            <a href="#how-it-works" className="transition-colors" style={{ color: navLinkColor }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.color=navLinkHoverColor} onMouseLeave={e => (e.currentTarget as HTMLElement).style.color=navLinkColor}>How It Works</a>
+            <a href="#pricing" className="transition-colors" style={{ color: navLinkColor }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.color=navLinkHoverColor} onMouseLeave={e => (e.currentTarget as HTMLElement).style.color=navLinkColor}>Pricing</a>
+            <a href="#faq" className="transition-colors" style={{ color: navLinkColor }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.color=navLinkHoverColor} onMouseLeave={e => (e.currentTarget as HTMLElement).style.color=navLinkColor}>FAQ</a>
           </nav>
 
           <div className="flex items-center gap-4">
-            <Link href="/auth/login" className="text-sm font-semibold px-3 py-2 rounded-lg transition-colors" style={{ color: '#16a34a' }}>
+            <Link href="/auth/login" className="text-sm font-semibold px-3 py-2 rounded-lg transition-colors" style={{ color: loginLinkColor }}>
               Login
             </Link>
             <Link href="/auth/register">
-              <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105" style={{ background: 'linear-gradient(135deg, #16a34a, #22c55e)', boxShadow: '0 4px 16px rgba(34,197,94,0.3)' }}>
+              <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105" style={{ background: isDark ? 'linear-gradient(135deg, #2563eb, #3b82f6)' : 'linear-gradient(135deg, #16a34a, #22c55e)', boxShadow: isDark ? '0 4px 16px rgba(59,130,246,0.3)' : '0 4px 16px rgba(34,197,94,0.3)' }}>
                 Get Started
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
@@ -105,40 +125,40 @@ export default function LandingPage() {
       {/* Main Content */}
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="relative pt-24 pb-20 md:pt-32 md:pb-28 overflow-hidden" style={{ background: 'linear-gradient(160deg, #f0fdf4 0%, #dcfce7 60%, #f0fdf4 100%)' }}>
+        <section className="relative pt-24 pb-20 md:pt-32 md:pb-28 overflow-hidden transition-all duration-300" style={{ background: heroBg }}>
           <div className="max-w-7xl mx-auto px-6 relative z-10 text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold mb-6" style={{ backgroundColor: '#dcfce7', border: '1.5px solid #86efac', color: '#16a34a' }}>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold mb-6" style={{ backgroundColor: isDark ? "rgba(59,130,246,0.15)" : "#dcfce7", border: isDark ? "1.5px solid #1a3a6e" : "1.5px solid #86efac", color: isDark ? "#60a5fa" : "#16a34a" }}>
               <Bot className="h-3.5 w-3.5" />
               Meet ACT — Your Intelligent Transformation Partner
             </div>
             
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 max-w-5xl mx-auto leading-[1.1]" style={{ color: '#0d2d0d' }}>
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 max-w-5xl mx-auto leading-[1.1]" style={{ color: heroHeadingColor }}>
               Automate Content Transformation with{" "}
-              <span style={{ color: '#16a34a' }}>
+              <span style={{ color: heroSpanColor }}>
                 Generative AI
               </span>
             </h1>
             
-            <p className="text-lg md:text-xl max-w-3xl mx-auto mb-10 leading-relaxed" style={{ color: '#4b7a4b' }}>
+            <p className="text-lg md:text-xl max-w-3xl mx-auto mb-10 leading-relaxed font-medium" style={{ color: primaryBodyColor }}>
               Upload documents, audio files, code, or raw data. ACT automatically chunks, embeds, reads, and transforms them into reports, summaries, templates, and high-fidelity structured outputs.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto">
               <Link href="/auth/register" className="w-full sm:w-auto">
-                <button className="w-full px-8 py-3.5 rounded-xl text-sm font-bold text-white transition-all hover:scale-105" style={{ background: 'linear-gradient(135deg, #16a34a, #22c55e)', boxShadow: '0 6px 24px rgba(34,197,94,0.35)' }}>
+                <button className="w-full px-8 py-3.5 rounded-xl text-sm font-bold text-white transition-all hover:scale-105" style={{ background: isDark ? 'linear-gradient(135deg, #2563eb, #3b82f6)' : 'linear-gradient(135deg, #16a34a, #22c55e)', boxShadow: isDark ? '0 6px 24px rgba(59,130,246,0.35)' : '0 6px 24px rgba(34,197,94,0.35)' }}>
                   Start Free Trial
                 </button>
               </Link>
               <a href="#showcase" className="w-full sm:w-auto">
-                <button className="w-full px-8 py-3.5 rounded-xl text-sm font-bold transition-all hover:scale-105" style={{ border: '2px solid #22c55e', color: '#16a34a', backgroundColor: 'transparent' }}>
+                <button className="w-full px-8 py-3.5 rounded-xl text-sm font-bold transition-all hover:scale-105" style={{ border: isDark ? '2px solid #3b82f6' : '2px solid #22c55e', color: isDark ? '#60a5fa' : '#16a34a', backgroundColor: 'transparent' }}>
                   See Transformation Demo
                 </button>
               </a>
             </div>
 
-            {/* Green Orbs */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full blur-[120px] pointer-events-none -z-10" style={{ backgroundColor: 'rgba(34,197,94,0.08)' }} />
-            <div className="absolute top-1/3 left-1/4 w-[300px] h-[300px] rounded-full blur-[90px] pointer-events-none -z-10" style={{ backgroundColor: 'rgba(16,185,129,0.07)' }} />
+            {/* Green / Blue Orbs */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full blur-[120px] pointer-events-none -z-10" style={{ backgroundColor: isDark ? 'rgba(59,130,246,0.08)' : 'rgba(34,197,94,0.08)' }} />
+            <div className="absolute top-1/3 left-1/4 w-[300px] h-[300px] rounded-full blur-[90px] pointer-events-none -z-10" style={{ backgroundColor: isDark ? 'rgba(96,165,250,0.07)' : 'rgba(16,185,129,0.07)' }} />
           </div>
         </section>
 

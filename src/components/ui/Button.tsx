@@ -22,8 +22,8 @@ export function Button({
     secondary:
       "bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:brightness-110 shadow-lg shadow-cyan-500/20",
     outline:
-      "border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 text-slate-200",
-    ghost: "hover:bg-white/5 text-slate-300 hover:text-white",
+      "border border-border-color hover:border-primary-bright bg-transparent text-text-secondary hover:text-text-primary transition-colors",
+    ghost: "hover:bg-primary-subtle/20 text-text-secondary hover:text-text-primary transition-colors",
     danger: "bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/20",
     glow: "border border-purple-500/30 bg-purple-500/10 text-purple-200 hover:bg-purple-500/20 hover:border-purple-500/50 shadow-[0_0_15px_rgba(139,92,246,0.15)]",
   };

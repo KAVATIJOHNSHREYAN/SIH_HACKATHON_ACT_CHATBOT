@@ -39,8 +39,8 @@ export default function DashboardHome() {
   ];
 
   const quickActions = [
-    { title: "Transform PDF", desc: "Convert PDF to summaries, flashcards, structured data, or FAQs.", href: "/transform", icon: FileText },
-    { title: "Transcribe Audio", desc: "Upload MP3 or WAV briefs and extract notes, logs, or summaries.", href: "/transform", icon: Volume2 },
+    { title: "Transform PDF", desc: "Convert PDF to summaries, flashcards, structured data, or FAQs.", href: "/transform/pdf", icon: FileText },
+    { title: "Transcribe Audio", desc: "Upload MP3 or WAV briefs and extract notes, logs, or summaries.", href: "/transform/audio", icon: Volume2 },
     { title: "ACT Chat Workspace", desc: "Interact with transformed files and extract citations via RAG.", href: "/chat", icon: Sparkles },
   ];
 

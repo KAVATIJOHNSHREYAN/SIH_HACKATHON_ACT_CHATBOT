@@ -54,6 +54,9 @@
   --color-text-secondary: var(--text-secondary);
   --color-border-color: var(--border-color);
   --color-card-bg: var(--card-bg);
+  --color-primary: var(--primary);
+  --color-primary-bright: var(--primary-bright);
+  --color-primary-subtle: var(--primary-subtle);
 }
 
 body {
