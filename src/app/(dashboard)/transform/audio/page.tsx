@@ -5,10 +5,11 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
 import { 
   RefreshCw, ArrowLeft, Cpu, Mic, Square, Play, Pause, 
-  Upload, FileAudio, FileText, CheckSquare, ListPlus, Volume2, Trash2
+  Upload, FileAudio, FileText, CheckSquare, ListPlus, Volume2, Trash2, AlertCircle
 } from "lucide-react";
 import Link from "next/link";
 import { useTheme, LIGHT, DARK } from "@/contexts/ThemeContext";
+import { ApiClient } from "@/lib/apiClient";
 
 // Speech Recognition Type definition for TypeScript
 type SpeechRecognitionEvent = {
@@ -57,10 +58,10 @@ export default function AudioTransformPage() {
   const [transcript, setTranscript] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
   
-  // Pipeline Processing state
   const [status, setStatus] = useState<"idle" | "transcribing" | "processing" | "done">("idle");
   const [preset, setPreset] = useState<"minutes" | "actions" | "summary">("minutes");
   const [output, setOutput] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -238,30 +239,106 @@ export default function AudioTransformPage() {
     }
   };
 
-  const triggerAIProcess = () => {
-    if (mode === "record" && !transcript) {
-      alert("Please record some audio with spoken words first.");
-      return;
+  const saveToHistory = (item: { file: string; action: string; tokens: number }) => {
+    if (typeof window !== "undefined") {
+      const historyStr = localStorage.getItem("act_transform_history") || "[]";
+      const history = JSON.parse(historyStr);
+      const newJob = {
+        id: Date.now(),
+        file: item.file,
+        action: item.action,
+        date: new Date().toISOString().split("T")[0],
+        tokens: item.tokens.toString(),
+        status: "Completed"
+      };
+      localStorage.setItem("act_transform_history", JSON.stringify([newJob, ...history]));
     }
+  };
+
+  const triggerAIProcess = async () => {
+    setErrorMsg("");
+    let currentTranscript = transcript;
+
     if (mode === "upload" && !selectedFile) {
       alert("Please select or drop an audio file first.");
       return;
     }
+    if (mode === "record" && !transcript.trim()) {
+      alert("Please record some audio with spoken words first.");
+      return;
+    }
 
     setStatus("processing");
+    setOutput("");
 
-    setTimeout(() => {
-      const rawText = transcript || "Transcribed conversation detailing product roadmap priorities, design milestones, and sprint delegation.";
-      
-      if (preset === "minutes") {
-        setOutput(`### 📝 MEETING MINUTES\n\n**Discussion Topic:** Voice Transform Brief\n**Processed Date:** ${new Date().toLocaleDateString()}\n\n#### Key Discussion Points:\n- Developed direct browser-based Audio & Video Transcription Playground.\n- Enabled direct Speech recognition for low-latency live conversion.\n- Implemented base64 storage updates.\n\n#### Action Delegations:\n1. Wire database backplate to preserve logs.\n2. Review CSS variables and text colors in both modes.`);
-      } else if (preset === "actions") {
-        setOutput(`### 🔳 ACTION ITEMS\n\n- [ ] **Frontend Task:** Finalize audio timeline scrubber UI.\n- [ ] **Security Task:** Verify audio chunks blob cleanups on stream end.\n- [ ] **Theme Check:** Inspect contrasts of warning overlay labels.`);
-      } else {
-        setOutput(`### 📈 CORE CONVERTED SUMMARY\n\nThis session details the configuration parameters of browser MediaRecorder pipelines. It provides an immediate speech-to-text playground allowing the user to select templates to construct semantic minutes and task cards directly inside the dashboard.`);
+    try {
+      const savedApiKey = typeof window !== "undefined" ? localStorage.getItem("gemini_api_key") : "";
+      const savedOpenaiKey = typeof window !== "undefined" ? localStorage.getItem("openai_api_key") : "";
+      const savedCohereKey = typeof window !== "undefined" ? localStorage.getItem("cohere_api_key") : "";
+
+      // Stage 1: Transcribe the uploaded file if we don't have a transcript yet
+      if (mode === "upload" && !currentTranscript && fileBase64) {
+        setTranscript("Transcribing audio file... Please wait.");
+        
+        const extractPayload = {
+          fileData: fileBase64,
+          fileName: selectedFile?.name || "audio_file",
+          fileType: selectedFile?.type || "audio/wav",
+          format: "OCR Text",
+          model: "Gemini Pro",
+          apiKey: savedApiKey || null,
+          openaiKey: savedOpenaiKey || null,
+          cohereKey: savedCohereKey || null,
+        };
+
+        const extractData = await ApiClient.postTransform(extractPayload);
+        currentTranscript = extractData.output || "";
+        setTranscript(currentTranscript);
+
+        if (!currentTranscript.trim()) {
+          throw new Error("Transcriber yielded empty content. Please try another audio file.");
+        }
       }
+
+      // Stage 2: Transform transcript using targeted prompts
+      let targetFormat = "";
+      if (preset === "minutes") {
+        targetFormat = "Minutes (Convert the following transcript into structured meeting minutes)";
+      } else if (preset === "actions") {
+        targetFormat = "Actions (Extract only action items, owners if available, and deadlines)";
+      } else {
+        targetFormat = "Summary (Generate a concise professional summary)";
+      }
+
+      const transformPayload = {
+        text: currentTranscript,
+        format: targetFormat,
+        model: "Gemini Pro",
+        apiKey: savedApiKey || null,
+        openaiKey: savedOpenaiKey || null,
+        cohereKey: savedCohereKey || null,
+      };
+
+      const data = await ApiClient.postTransform(transformPayload);
+
       setStatus("done");
-    }, 1500);
+      setOutput(data.output || "No output generated.");
+
+      // Save to transform history
+      saveToHistory({
+        file: selectedFile ? selectedFile.name : "Live_Voice_Recording.wav",
+        action: `Audio to ${preset.charAt(0).toUpperCase() + preset.slice(1)}`,
+        tokens: Math.floor((currentTranscript || "").length / 4) + 120,
+      });
+
+    } catch (err: any) {
+      console.error(err);
+      setStatus("idle");
+      setErrorMsg(err.message || "Failed to process audio or transform transcription.");
+      if (transcript.startsWith("Transcribing audio file")) {
+        setTranscript("");
+      }
+    }
   };
 
   return (
@@ -280,6 +357,13 @@ export default function AudioTransformPage() {
           </p>
         </div>
       </div>
+
+      {errorMsg && (
+        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs flex items-center gap-2.5 shadow-sm">
+          <AlertCircle className="h-4.5 w-4.5 shrink-0" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
 
       {/* Mode Toggle Switch */}
       <div className="flex gap-1.5 p-1 rounded-xl w-fit border" style={{ backgroundColor: T.bgInput, borderColor: T.border }}>
@@ -483,7 +567,15 @@ export default function AudioTransformPage() {
             </div>
 
             <Button onClick={triggerAIProcess} className="w-full text-xs" disabled={status === "processing"}>
-              {status === "processing" ? "Analyzing audio..." : "Compile Transcription"}
+              {status === "processing" 
+                ? (transcript.startsWith("Transcribing audio file") 
+                   ? "Transcribing audio..." 
+                   : (preset === "minutes" 
+                      ? "Generating minutes..." 
+                      : (preset === "actions" 
+                         ? "Extracting action items..." 
+                         : "Generating summary...")))
+                : "Compile Transcription"}
               <RefreshCw className={`ml-2 h-4 w-4 ${status === "processing" ? "animate-spin" : ""}`} />
             </Button>
           </GlassCard>
