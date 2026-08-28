@@ -1,383 +1,439 @@
 "use client";
 
-import React, { useState, useRef } from "react";
-import {
-  User, ShieldCheck, Mail, Building, Briefcase, Award,
-  Pencil, Check, X, Calendar, Clock, Tag, Zap, Camera, Trash2
+import React, { useState, useEffect, useRef } from "react";
+import { 
+  User, ShieldCheck, Mail, Building, Briefcase, Award, Pencil, Check, X, 
+  Calendar, Clock, Tag, Zap, Camera, Trash2, Shield, Info, Database, Eye, 
+  RefreshCcw, Share2, MoreVertical, HardDrive, Phone, MapPin, Globe, Link2, 
+  Key, LogOut, CheckCircle, Smartphone, Sliders, Bell
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { useUser } from "@/contexts/UserContext";
+import { Button } from "@/components/ui/Button";
+import { useTheme, LIGHT, DARK } from "@/contexts/ThemeContext";
 
-// ─── Inline editable field ──────────────────────────────────────────────────
-function EditableField({
-  label,
-  value,
-  onSave,
-  type = "text",
-  placeholder = "",
-  multiline = false,
-}: {
-  label: string;
-  value: string;
-  onSave: (v: string) => void;
-  type?: string;
-  placeholder?: string;
-  multiline?: boolean;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-
-  const commit = () => { onSave(draft.trim() || value); setEditing(false); };
-  const cancel = () => { setDraft(value); setEditing(false); };
-
-  return (
-    <div className="space-y-1">
-      <span className="text-slate-500 text-xs font-medium">{label}</span>
-      {editing ? (
-        <div className="flex items-start gap-1.5">
-          {multiline ? (
-            <textarea
-              autoFocus
-              rows={3}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder={placeholder}
-              className="flex-1 px-2 py-1 rounded-lg border border-purple-400 text-slate-800 text-xs focus:outline-none resize-none"
-            />
-          ) : (
-            <input
-              autoFocus
-              type={type}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") cancel(); }}
-              placeholder={placeholder}
-              className="flex-1 px-2 py-1 rounded-lg border border-purple-400 text-slate-800 text-xs focus:outline-none"
-            />
-          )}
-          <div className="flex flex-col gap-1">
-            <button onClick={commit} className="p-1 rounded-md bg-purple-600 text-white hover:bg-purple-700">
-              <Check className="h-3 w-3" />
-            </button>
-            <button onClick={cancel} className="p-1 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200">
-              <X className="h-3 w-3" />
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-start gap-1.5 group">
-          <p className="text-slate-800 text-xs font-semibold flex-1 whitespace-pre-wrap">
-            {value || <span className="text-slate-400 italic">Not set</span>}
-          </p>
-          <button
-            onClick={() => { setDraft(value); setEditing(true); }}
-            className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-slate-400 hover:text-purple-600 transition-all shrink-0"
-          >
-            <Pencil className="h-3 w-3" />
-          </button>
-        </div>
-      )}
-    </div>
-  );
+interface Achievement {
+  id: string;
+  title: string;
+  desc: string;
+  progress: number;
+  earned: boolean;
+  icon: string;
 }
 
-// ─── Avatar Upload Component ─────────────────────────────────────────────────
-function AvatarUpload({
-  initials,
-  avatarColor,
-  avatarUrl,
-  onUpload,
-  onRemove,
-}: {
-  initials: string;
-  avatarColor: string;
-  avatarUrl?: string;
-  onUpload: (dataUrl: string) => void;
-  onRemove: () => void;
-}) {
-  const fileRef = useRef<HTMLInputElement>(null);
+interface UserProfile {
+  fullName: string;
+  username: string;
+  email: string;
+  emailVerified: boolean;
+  phone: string;
+  organization: string;
+  department: string;
+  designation: string;
+  country: string;
+  timezone: string;
+  language: string;
+  bio: string;
+  website: string;
+  linkedin: string;
+  github: string;
+  memberSince: string;
+  lastLogin: string;
+  lastActiveDevice: string;
+  accountId: string;
+  avatar: string;
+}
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+export default function ProfilePage() {
+  const { isDark, toggleTheme } = useTheme();
+  const T = isDark ? DARK : LIGHT;
+
+  const [profile, setProfile] = useState<UserProfile>({
+    fullName: "John Shreyan",
+    username: "johnshreyan",
+    email: "johnshreyan@act.platform",
+    emailVerified: true,
+    phone: "+91 98765 43210",
+    organization: "ACT Platform Corp",
+    department: "AI & Innovation Labs",
+    designation: "Principal Architect",
+    country: "India",
+    timezone: "IST (GMT+5:30)",
+    language: "English (US)",
+    bio: "AI platform architect specializing in document transformation workflows, vector store RAG queries, and neural pipeline optimizations.",
+    website: "https://act-platform.io",
+    linkedin: "https://linkedin.com/in/johnshreyan",
+    github: "https://github.com/johnshreyan",
+    memberSince: "2026-08-01",
+    lastLogin: new Date().toLocaleString(),
+    lastActiveDevice: "Desktop Chrome (Windows 11)",
+    accountId: "ACT_ACC_9821-4921",
+    avatar: ""
+  });
+
+  // State hooks for sub-systems
+  const [editingPersonal, setEditingPersonal] = useState(false);
+  const [profileProgress, setProfileProgress] = useState(85);
+  
+  // Custom API keys state
+  const [apiKeys, setApiKeys] = useState<string[]>([
+    "act_live_92149...x9f2"
+  ]);
+
+  // Notifications preferences
+  const [notifEmail, setNotifEmail] = useState(true);
+  const [notifBrowser, setNotifBrowser] = useState(true);
+  const [notifAlerts, setNotifAlerts] = useState(true);
+
+  // Preference details
+  const [accentColor, setAccentColor] = useState("#a855f7");
+  const [compactMode, setCompactMode] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load profile state
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("act_user_profile_data");
+      if (stored) {
+        setProfile(JSON.parse(stored));
+      } else {
+        localStorage.setItem("act_user_profile_data", JSON.stringify(profile));
+      }
+    }
+  }, []);
+
+  const saveProfile = (updated: UserProfile) => {
+    setProfile(updated);
+    localStorage.setItem("act_user_profile_data", JSON.stringify(updated));
+  };
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) return;
-    if (file.size > 2 * 1024 * 1024) {
-      alert("Photo must be under 2 MB.");
-      return;
-    }
     const reader = new FileReader();
-    reader.onload = () => onUpload(reader.result as string);
+    reader.onload = () => {
+      saveProfile({ ...profile, avatar: reader.result as string });
+    };
     reader.readAsDataURL(file);
-    // reset so same file can be re-selected
-    e.target.value = "";
   };
 
+  const removeAvatar = () => {
+    saveProfile({ ...profile, avatar: "" });
+  };
+
+  const handleSavePersonalInfo = () => {
+    saveProfile(profile);
+    setEditingPersonal(false);
+    alert("Profile information saved successfully!");
+  };
+
+  // Achievements
+  const achievements: Achievement[] = [
+    { id: "ach_1", title: "First Transformation", desc: "Indexed and ran OCR/Transcription on your first document.", progress: 100, earned: true, icon: "Zap" },
+    { id: "ach_2", title: "Knowledge Expert", desc: "Indexed 100 document files inside projects.", progress: 75, earned: false, icon: "Database" },
+    { id: "ach_3", title: "AI Explorer", desc: "Sent over 1000 messages in workspace chat rooms.", progress: 100, earned: true, icon: "MessageSquare" },
+    { id: "ach_4", title: "Power User", desc: "Executed 100 Quick Actions.", progress: 30, earned: false, icon: "Cpu" }
+  ];
+
   return (
-    <div className="relative mx-auto w-24 h-24 group">
-      {/* Hidden file input */}
+    <div className="space-y-6 max-w-5xl mx-auto pb-10">
+      
+      {/* Hidden file selector for photo uploads */}
       <input
-        ref={fileRef}
         type="file"
+        ref={fileInputRef}
+        onChange={handleAvatarUpload}
         accept="image/*"
         className="hidden"
-        onChange={handleFile}
       />
 
-      {/* Avatar circle */}
-      {avatarUrl ? (
-        <img
-          src={avatarUrl}
-          alt="Profile"
-          className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-xl"
-        />
-      ) : (
-        <div
-          className="w-24 h-24 rounded-full flex items-center justify-center font-bold text-white text-2xl border-4 border-white shadow-xl"
-          style={{ background: avatarColor }}
-        >
-          {initials}
-        </div>
-      )}
-
-      {/* Overlay: camera icon + remove */}
-      <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-1 cursor-pointer">
-        <button
-          onClick={() => fileRef.current?.click()}
-          className="flex flex-col items-center gap-0.5 text-white"
-          title="Upload photo"
-        >
-          <Camera className="h-5 w-5" />
-          <span className="text-[9px] font-semibold">Change</span>
-        </button>
-        {avatarUrl && (
-          <button
-            onClick={onRemove}
-            className="flex flex-col items-center gap-0.5 text-red-300 hover:text-red-200"
-            title="Remove photo"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            <span className="text-[8px] font-semibold">Remove</span>
-          </button>
-        )}
-      </div>
-
-      {/* Upload hint badge below avatar */}
-      <button
-        onClick={() => fileRef.current?.click()}
-        className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold text-white shadow-lg border border-white/30 whitespace-nowrap"
-        style={{ background: 'linear-gradient(135deg,#7c3aed,#9333ea)' }}
-      >
-        <Camera className="h-2.5 w-2.5" />
-        {avatarUrl ? "Change photo" : "Add photo"}
-      </button>
-    </div>
-  );
-}
-
-// ─── Main Component ──────────────────────────────────────────────────────────
-export default function ProfilePage() {
-  const { user, updateUser, getInitials, nameToColor } = useUser();
-
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <User className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-600 text-sm font-semibold">No session found.</p>
-          <p className="text-slate-400 text-xs mt-1">Please log in to view your profile.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const initials = getInitials(user.name || user.email);
-  const avatarColor = nameToColor(user.name || user.email);
-
-  const fmt = (iso: string) => {
-    try { return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }); }
-    catch { return iso; }
-  };
-
-  const fmtTime = (iso: string) => {
-    try { return new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
-    catch { return iso; }
-  };
-
-  return (
-    <div className="space-y-8 max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-          <User className="h-6 w-6 text-purple-600" />
-          My Profile
-        </h1>
-        <p className="text-slate-600 text-xs mt-1">
-          Hover fields to edit inline · Click the avatar to upload a photo.
-        </p>
-      </div>
-
-      <div className="grid md:grid-cols-3 gap-6 items-start">
-
-        {/* ── Avatar Card ─────────────────────────────────── */}
-        <GlassCard className="border-slate-200 bg-white shadow-sm md:col-span-1 text-center space-y-5">
-
-          {/* Photo upload */}
-          <AvatarUpload
-            initials={initials}
-            avatarColor={avatarColor}
-            avatarUrl={user.avatar}
-            onUpload={(dataUrl) => updateUser({ avatar: dataUrl })}
-            onRemove={() => updateUser({ avatar: undefined })}
-          />
-
-          {/* Name (inline prompt) */}
-          <div className="pt-4">
-            <div className="flex items-center justify-center gap-1.5 group">
-              <h2 className="text-base font-bold text-slate-800 tracking-tight">{user.name || "—"}</h2>
-              <button
-                onClick={() => {
-                  const newName = window.prompt("Enter new name:", user.name);
-                  if (newName && newName.trim()) updateUser({ name: newName.trim() });
-                }}
-                className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-slate-400 hover:text-purple-600 transition-all"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
+      {/* Profile Banner / Header Card */}
+      <GlassCard className="p-6 flex flex-col md:flex-row items-center gap-6" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+        
+        {/* Circle avatar */}
+        <div className="relative group shrink-0">
+          {profile.avatar ? (
+            <img 
+              src={profile.avatar} 
+              alt="Avatar" 
+              className="h-24 w-24 rounded-full object-cover border-4 border-purple-500/20 shadow-xl" 
+            />
+          ) : (
+            <div className="h-24 w-24 rounded-full flex items-center justify-center font-bold text-white text-3xl bg-purple-650 border-4 border-purple-500/20 shadow-xl">
+              {profile.fullName.split(" ").map(n => n[0]).join("")}
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">{user.email}</p>
+          )}
+          
+          <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 cursor-pointer">
+            <button onClick={() => fileInputRef.current?.click()} className="text-white text-[10px] font-bold flex items-center gap-1">
+              <Camera className="h-3 w-3" />
+              Upload
+            </button>
+            {profile.avatar && (
+              <button onClick={removeAvatar} className="text-red-400 text-[10px] font-bold">Remove</button>
+            )}
+          </div>
+        </div>
+
+        {/* Username role information */}
+        <div className="flex-1 text-center md:text-left space-y-2">
+          <div>
+            <div className="flex items-center justify-center md:justify-start gap-2">
+              <h2 className="text-xl font-bold" style={{ color: T.textPrimary }}>{profile.fullName}</h2>
+              {profile.emailVerified && (
+                <span className="px-2 py-0.5 rounded-full text-[8.5px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Verified</span>
+              )}
+            </div>
+            <p className="text-xs text-slate-400">@{profile.username} • {profile.designation}</p>
           </div>
 
-          {/* Role badge */}
-          <span
-            className="inline-block px-3 py-1 rounded-full font-semibold text-[10px] uppercase shadow-sm"
-            style={{
-              backgroundColor: user.role === "Admin" || user.role === "Super Admin" ? '#fef3c7' : '#f0fdf4',
-              border: `1px solid ${user.role === "Admin" || user.role === "Super Admin" ? '#fcd34d' : '#bbf7d0'}`,
-              color: user.role === "Admin" || user.role === "Super Admin" ? '#92400e' : '#15803d',
-            }}
-          >
-            {user.role}
-          </span>
-
-          {/* Plan badge */}
-          <div
-            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold mx-auto w-fit shadow-sm"
-            style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a' }}
-          >
-            <Zap className="h-3.5 w-3.5" />
-            ACT {user.plan} Plan
+          <div className="flex justify-center md:justify-start gap-2.5">
+            <span className="px-2.5 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider bg-purple-500/10 text-purple-400 border border-purple-500/20">
+              ACT Enterprise Plan
+            </span>
           </div>
 
-          <p className="text-[10px] text-slate-400 pb-1">
-            Max upload size: 2 MB<br />Supported: JPG, PNG, GIF, WebP
-          </p>
-        </GlassCard>
+          {/* Completion scale */}
+          <div className="space-y-1 max-w-xs mx-auto md:mx-0">
+            <div className="flex justify-between text-[8px] font-bold text-slate-500 uppercase tracking-wider">
+              <span>Profile Completion</span>
+              <span>{profileProgress}%</span>
+            </div>
+            <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div className="bg-purple-650 h-full" style={{ width: `${profileProgress}%` }} />
+            </div>
+          </div>
+        </div>
 
-        {/* ── Details Column ───────────────────────────────── */}
-        <div className="md:col-span-2 space-y-6">
+        <div className="flex md:flex-col gap-2 shrink-0 w-full md:w-auto">
+          {editingPersonal ? (
+            <Button onClick={handleSavePersonalInfo} className="bg-purple-600 hover:bg-purple-700 text-xs py-2 w-full md:w-36">
+              Save Changes
+            </Button>
+          ) : (
+            <Button onClick={() => setEditingPersonal(true)} variant="outline" className="text-xs py-2 w-full md:w-36">
+              Edit Profile
+            </Button>
+          )}
+        </div>
 
-          {/* Personal Information */}
-          <GlassCard className="border-slate-200 bg-white shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-3 mb-4">
+      </GlassCard>
+
+      {/* Split grid details */}
+      <div className="grid md:grid-cols-12 gap-6 items-start">
+        
+        {/* Personal Details Column */}
+        <div className="md:col-span-8 space-y-6">
+          
+          {/* Detailed Account fields */}
+          <GlassCard className="p-5 space-y-4" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b pb-2 mb-2" style={{ borderColor: T.border }}>
               Personal Information
             </h3>
-            <div className="grid sm:grid-cols-2 gap-5 text-xs">
-              <div className="flex items-start gap-2">
-                <Mail className="h-3.5 w-3.5 text-purple-600 mt-0.5 shrink-0" />
-                <EditableField
-                  label="Email Address"
-                  value={user.email}
-                  type="email"
-                  placeholder="you@example.com"
-                  onSave={(v) => updateUser({ email: v })}
-                />
-              </div>
 
-              <div className="flex items-start gap-2">
-                <Building className="h-3.5 w-3.5 text-purple-600 mt-0.5 shrink-0" />
-                <EditableField
-                  label="Organization"
-                  value={user.organization}
-                  placeholder="Your organization"
-                  onSave={(v) => updateUser({ organization: v })}
-                />
-              </div>
-
-              <div className="flex items-start gap-2">
-                <Briefcase className="h-3.5 w-3.5 text-purple-600 mt-0.5 shrink-0" />
+            {editingPersonal ? (
+              <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <span className="text-slate-500 text-xs font-medium">Role</span>
-                  <p className="text-slate-800 text-xs font-semibold">{user.role}</p>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Full Name</label>
+                  <input
+                    type="text"
+                    value={profile.fullName}
+                    onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl text-xs bg-slate-900 border text-white focus:outline-none"
+                    style={{ borderColor: T.border }}
+                  />
                 </div>
-              </div>
-
-              <div className="flex items-start gap-2">
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 mt-0.5 shrink-0" />
                 <div className="space-y-1">
-                  <span className="text-slate-500 text-xs font-medium">Session Status</span>
-                  <p className="text-emerald-600 text-xs font-semibold">Active Session</p>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Phone Number</label>
+                  <input
+                    type="text"
+                    value={profile.phone}
+                    onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl text-xs bg-slate-900 border text-white focus:outline-none"
+                    style={{ borderColor: T.border }}
+                  />
                 </div>
-              </div>
-
-              <div className="flex items-start gap-2">
-                <Calendar className="h-3.5 w-3.5 text-purple-600 mt-0.5 shrink-0" />
                 <div className="space-y-1">
-                  <span className="text-slate-500 text-xs font-medium">Member Since</span>
-                  <p className="text-slate-800 text-xs font-semibold">{fmt(user.createdAt)}</p>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Country</label>
+                  <input
+                    type="text"
+                    value={profile.country}
+                    onChange={(e) => setProfile({ ...profile, country: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl text-xs bg-slate-900 border text-white focus:outline-none"
+                    style={{ borderColor: T.border }}
+                  />
                 </div>
-              </div>
-
-              <div className="flex items-start gap-2">
-                <Clock className="h-3.5 w-3.5 text-purple-600 mt-0.5 shrink-0" />
                 <div className="space-y-1">
-                  <span className="text-slate-500 text-xs font-medium">Last Login</span>
-                  <p className="text-slate-800 text-xs font-semibold">{fmtTime(user.lastLogin)}</p>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">TimeZone</label>
+                  <input
+                    type="text"
+                    value={profile.timezone}
+                    onChange={(e) => setProfile({ ...profile, timezone: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl text-xs bg-slate-900 border text-white focus:outline-none"
+                    style={{ borderColor: T.border }}
+                  />
                 </div>
-              </div>
-            </div>
-
-            {/* Bio */}
-            <div className="pt-3 border-t border-slate-100">
-              <EditableField
-                label="Bio"
-                value={user.bio}
-                placeholder="Write something about yourself..."
-                onSave={(v) => updateUser({ bio: v })}
-                multiline
-              />
-            </div>
-          </GlassCard>
-
-          {/* Achievements */}
-          <GlassCard className="border-slate-200 bg-white shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-3 mb-4 flex items-center gap-2">
-              <Award className="h-4.5 w-4.5 text-purple-600" />
-              Platform Achievements
-            </h3>
-
-            {user.achievements.length === 0 ? (
-              <div className="py-8 text-center">
-                <Tag className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-                <p className="text-xs font-semibold text-slate-600">No achievements yet.</p>
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Start transforming documents to earn your first badge!
-                </p>
+                <div className="sm:col-span-2 space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Bio / Abstract Summary</label>
+                  <textarea
+                    value={profile.bio}
+                    onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
+                    className="w-full p-3 rounded-xl text-xs bg-slate-900 border text-white focus:outline-none h-24"
+                    style={{ borderColor: T.border }}
+                  />
+                </div>
               </div>
             ) : (
-              <div className="grid sm:grid-cols-2 gap-3">
-                {user.achievements.map((a, i) => (
-                  <div key={i} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1 shadow-sm">
-                    <p className="text-xs font-bold text-slate-800">{a.title}</p>
-                    <p className="text-[10px] text-slate-500">{a.desc}</p>
-                    {a.earnedAt && (
-                      <p className="text-[10px] text-purple-600 font-medium">Earned {fmt(a.earnedAt)}</p>
-                    )}
-                  </div>
-                ))}
+              <div className="grid sm:grid-cols-2 gap-5 text-xs text-slate-300">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-purple-400" />
+                  <span>Email: {profile.email}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-purple-400" />
+                  <span>Phone: {profile.phone}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-purple-400" />
+                  <span>Location: {profile.country}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-purple-400" />
+                  <span>Timezone: {profile.timezone}</span>
+                </div>
+                <div className="sm:col-span-2 p-3.5 bg-slate-900/60 rounded-xl border leading-relaxed border-white/5">
+                  <strong>Professional Bio:</strong> {profile.bio}
+                </div>
               </div>
             )}
           </GlassCard>
+
+          {/* Achievements Grid */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Earned achievements</h3>
+            <div className="grid sm:grid-cols-2 gap-4">
+              {achievements.map(ach => (
+                <GlassCard key={ach.id} className="p-4 space-y-3" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-white">{ach.title}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[8.5px] font-bold ${
+                      ach.earned ? "bg-emerald-500/10 text-emerald-400" : "bg-purple-500/10 text-purple-400"
+                    }`}>
+                      {ach.earned ? "Unlocked" : "Locked"}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-400">{ach.desc}</p>
+                  
+                  {/* Progress bar */}
+                  <div className="space-y-1">
+                    <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                      <div className="bg-purple-650 h-full" style={{ width: `${ach.progress}%` }} />
+                    </div>
+                  </div>
+                </GlassCard>
+              ))}
+            </div>
+          </div>
+
         </div>
+
+        {/* Preferences and Subscriptions column */}
+        <div className="md:col-span-4 space-y-6">
+          
+          {/* Subscription details */}
+          <GlassCard className="p-4 space-y-4" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b pb-1" style={{ borderColor: T.border }}>
+              Subscription Tier
+            </h3>
+
+            <div className="space-y-2 text-xs text-slate-300">
+              <div className="flex justify-between">
+                <span>Monthly Allocation</span>
+                <span className="font-bold">Unlimited API</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Vector Size Quota</span>
+                <span className="font-bold">500 MB</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Next Invoice Renewal</span>
+                <span className="font-bold">Sep 01, 2026</span>
+              </div>
+            </div>
+          </GlassCard>
+
+          {/* Security details (Manage key generation) */}
+          <GlassCard className="p-4 space-y-4" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b pb-1" style={{ borderColor: T.border }}>
+              Security Center
+            </h3>
+
+            <div className="space-y-3.5">
+              <div className="space-y-1.5">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Personal API Keys</span>
+                {apiKeys.map(key => (
+                  <div key={key} className="flex justify-between items-center text-[10px] font-mono bg-slate-900 border p-2 rounded-xl" style={{ borderColor: T.border }}>
+                    <span>{key}</span>
+                    <button 
+                      onClick={() => {
+                        setApiKeys(apiKeys.filter(k => k !== key));
+                        alert("Key revoked successfully.");
+                      }}
+                      className="text-red-400 font-bold"
+                    >
+                      Revoke
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <Button 
+                onClick={() => {
+                  const newKey = `act_live_${Math.random().toString(36).substr(2, 9)}...x${Math.floor(Math.random() * 900 + 100)}`;
+                  setApiKeys([...apiKeys, newKey]);
+                  alert("New platform API key generated!");
+                }}
+                className="w-full text-[10px] py-1 border bg-slate-800"
+              >
+                Generate Key
+              </Button>
+            </div>
+          </GlassCard>
+
+          {/* Preferences switcher */}
+          <GlassCard className="p-4 space-y-4" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b pb-1" style={{ borderColor: T.border }}>
+              Interface Preferences
+            </h3>
+
+            <div className="space-y-3">
+              <div className="flex justify-between items-center text-xs">
+                <span>Dashboard Theme</span>
+                <button 
+                  onClick={toggleTheme}
+                  className="px-3 py-1.5 rounded-lg border text-[10px] font-bold"
+                  style={{ borderColor: T.border }}
+                >
+                  {isDark ? "Dark Theme" : "Light Theme"}
+                </button>
+              </div>
+
+              <div className="flex justify-between items-center text-xs">
+                <span>Compact Layout Mode</span>
+                <input
+                  type="checkbox"
+                  checked={compactMode}
+                  onChange={(e) => setCompactMode(e.target.checked)}
+                  className="h-4 w-4 cursor-pointer text-purple-650"
+                />
+              </div>
+            </div>
+          </GlassCard>
+
+        </div>
+
       </div>
+
     </div>
   );
 }
