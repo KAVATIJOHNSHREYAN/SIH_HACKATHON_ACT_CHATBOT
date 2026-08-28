@@ -163,7 +163,7 @@ export default function LandingPage() {
         </section>
 
         {/* Feature Highlights Grid */}
-        <section id="features" className="py-20 relative" style={{ backgroundColor: '#ffffff', borderTop: '1.5px solid #dcfce7' }}>
+        <section id="features" className="py-20 relative transition-all duration-300" style={{ backgroundColor: isDark ? '#0b1628' : '#ffffff', borderTop: isDark ? '1.5px solid #1a3a6e' : '1.5px solid #dcfce7' }}>
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
@@ -209,7 +209,7 @@ export default function LandingPage() {
         </section>
 
         {/* Interactive Transformation Showcase */}
-        <section id="showcase" className="py-20 border-t border-slate-100 relative">
+        <section id="showcase" className="py-20 border-t relative transition-all duration-300" style={{ borderTopColor: isDark ? '#1a3a6e' : '#e2e8f0', backgroundColor: isDark ? '#060d1a' : 'transparent' }}>
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-12">
               <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
@@ -278,7 +278,7 @@ export default function LandingPage() {
         </section>
 
         {/* Supported formats */}
-        <section className="py-20 border-t border-slate-100 bg-white/60">
+        <section className="py-20 border-t transition-all duration-300" style={{ borderTopColor: isDark ? '#1a3a6e' : '#e2e8f0', backgroundColor: isDark ? '#0b1628' : 'rgba(255, 255, 255, 0.6)' }}>
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-12">
               <h2 className="text-2xl font-bold text-slate-900 mb-2">Supported Formats</h2>
@@ -296,7 +296,7 @@ export default function LandingPage() {
         </section>
 
         {/* How It Works */}
-        <section id="how-it-works" className="py-20 border-t border-slate-100 bg-slate-50/50">
+        <section id="how-it-works" className="py-20 border-t transition-all duration-300" style={{ borderTopColor: isDark ? '#1a3a6e' : '#e2e8f0', backgroundColor: isDark ? '#060d1a' : 'rgba(248, 250, 252, 0.5)' }}>
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-16">
               <h2 className="text-3xl font-bold text-slate-900 mb-4">How ACT Simplifies Operations</h2>
@@ -340,7 +340,7 @@ export default function LandingPage() {
         </section>
 
         {/* Pricing Placeholders */}
-        <section id="pricing" className="py-20 border-t border-slate-100 relative">
+        <section id="pricing" className="py-20 border-t relative transition-all duration-300" style={{ borderTopColor: isDark ? '#1a3a6e' : '#e2e8f0', backgroundColor: isDark ? '#0b1628' : 'transparent' }}>
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-16">
               <h2 className="text-3xl font-bold text-slate-900 mb-4">Flexible Pricing for Any Scale</h2>
@@ -407,7 +407,7 @@ export default function LandingPage() {
         </section>
 
         {/* FAQ Accordions */}
-        <section id="faq" className="py-20 border-t border-slate-100 bg-white/40">
+        <section id="faq" className="py-20 border-t transition-all duration-300" style={{ borderTopColor: isDark ? '#1a3a6e' : '#e2e8f0', backgroundColor: isDark ? '#060d1a' : 'rgba(255, 255, 255, 0.4)' }}>
           <div className="max-w-4xl mx-auto px-6">
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold text-slate-900 mb-4">Frequently Asked Questions</h2>
@@ -440,7 +440,7 @@ export default function LandingPage() {
         </section>
 
         {/* Contact Form */}
-        <section className="py-20 border-t border-slate-100 relative">
+        <section className="py-20 border-t relative transition-all duration-300" style={{ borderTopColor: isDark ? '#1a3a6e' : '#e2e8f0', backgroundColor: isDark ? '#0b1628' : 'transparent' }}>
           <div className="max-w-xl mx-auto px-6">
             <GlassCard className="p-8">
               <h2 className="text-2xl font-bold text-slate-900 mb-2 text-center">Contact ACT Support</h2>
