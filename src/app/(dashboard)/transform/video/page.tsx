@@ -3,8 +3,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
-import { 
-  RefreshCw, ArrowLeft, Cpu, Upload, Video, Play, Pause, 
+import {
+  RefreshCw, ArrowLeft, Cpu, Upload, Video, Play, Pause,
   Volume2, VolumeX, Maximize2, Download, Copy, Check, AlertCircle, Image as ImageIcon
 } from "lucide-react";
 import Link from "next/link";
@@ -15,7 +15,7 @@ import { ApiClient } from "@/lib/apiClient";
 
 // 1. VIDEO UPLOADER COMPONENT
 interface VideoUploaderProps {
-  onFileLoaded: (file: File) => void;
+  onFileLoaded: (file: File) => Promise<void>;
   isProcessing: boolean;
   T: any;
 }
@@ -55,9 +55,8 @@ function VideoUploader({ onFileLoaded, isProcessing, T }: VideoUploaderProps) {
           if (file) handleFile(file);
         }}
         onClick={() => !isProcessing && fileInputRef.current?.click()}
-        className={`p-10 border-2 border-dashed rounded-2xl text-center cursor-pointer transition-all ${
-          dragActive ? "border-purple-500 bg-purple-500/5" : "hover:border-purple-500/40"
-        } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+        className={`p-10 border-2 border-dashed rounded-2xl text-center cursor-pointer transition-all ${dragActive ? "border-purple-500 bg-purple-500/5" : "hover:border-purple-500/40"
+          } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
         style={{ backgroundColor: T.bgInput, borderColor: T.border }}
       >
         <Video className="h-10 w-10 text-purple-500 mx-auto mb-3 animate-pulse" />
@@ -300,9 +299,9 @@ function ProcessingProgress({ stage, progress, T }: ProcessingProgressProps) {
         <span style={{ color: T.textSecondary }}>{progress}%</span>
       </div>
       <div className="w-full h-2 rounded-full overflow-hidden border shadow-inner" style={{ backgroundColor: T.bgHover, borderColor: T.border }}>
-        <div 
-          className="bg-gradient-to-r from-purple-500 to-emerald-500 h-full rounded-full transition-all duration-300" 
-          style={{ width: `${progress}%` }} 
+        <div
+          className="bg-gradient-to-r from-purple-500 to-emerald-500 h-full rounded-full transition-all duration-300"
+          style={{ width: `${progress}%` }}
         />
       </div>
     </div>
@@ -407,7 +406,7 @@ function OutputPanel({ output, setOutput, T }: OutputPanelProps) {
         <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: T.border }}>
           <span className="text-xs font-bold" style={{ color: T.textPrimary }}>ACT Converted Output</span>
           {output && (
-            <button 
+            <button
               onClick={handleCopy}
               className="flex items-center gap-1 text-[10px] text-purple-500 hover:text-purple-600 font-semibold"
             >
@@ -492,7 +491,7 @@ export default function VideoTransformPage() {
     });
   };
 
-  const handleFileLoaded = (file: File) => {
+  const handleFileLoaded = async (file: File) => {
     console.log("upload started");
     setErrorMsg("");
     setOutput("");
@@ -533,7 +532,7 @@ export default function VideoTransformPage() {
       // 1. READ METADATA & GENERATE PREVIEW
       setStage("Reading Video Metadata...");
       setProgress(10);
-      
+
       const fileBase64 = await readFileAsDataURL(selectedVideo);
       await new Promise((r) => setTimeout(r, 600));
 
@@ -549,7 +548,7 @@ export default function VideoTransformPage() {
 
       setStage("Running Speech Recognition...");
       setProgress(40);
-      
+
       // Request AI speech transcription from file payload
       const transcriptPayload = {
         fileData: fileBase64,
@@ -569,7 +568,7 @@ export default function VideoTransformPage() {
       // 3. EXTRACT CANVAS FRAMES AT SPECIFIED INTERVALS
       setStage("Extracting Video Frames...");
       setProgress(60);
-      
+
       const frameCount = Math.min(10, Math.max(2, Math.floor(duration / interval)));
       const extractedFramesList: { time: number; url: string; ocr?: string }[] = [];
 
@@ -583,7 +582,7 @@ export default function VideoTransformPage() {
         for (let i = 0; i < frameCount; i++) {
           const targetTime = Math.min(duration - 0.5, i * interval);
           videoElement.currentTime = targetTime;
-          
+
           // Wait for seeked event
           await new Promise<void>((resolve) => {
             const onSeeked = () => {
@@ -608,7 +607,7 @@ export default function VideoTransformPage() {
       // 4. RUN OCR ON SELECT EXTRACTED FRAMES
       setStage("Running Frame OCR & Text Alignment...");
       setProgress(75);
-      
+
       let ocrDetectionsText = "";
       let ocrSuccessCount = 0;
 
@@ -628,7 +627,7 @@ export default function VideoTransformPage() {
           };
           const ocrRes = await ApiClient.postTransform(ocrPayload);
           const detectedText = ocrRes.output || "";
-          
+
           if (detectedText.trim() && !detectedText.includes("Sandbox Mode")) {
             frame.ocr = detectedText.trim();
             ocrDetectionsText += `[Timestamp ${Math.floor(frame.time)}s] Visual OCR Text: ${detectedText.trim()}\n`;
@@ -643,7 +642,7 @@ export default function VideoTransformPage() {
       // 5. COMBINE TRANSCRIPT & OCR FOR FINAL TARGET AI TRANSFORMATION
       setStage("Generating Converted Output...");
       setProgress(90);
-      
+
       const tAfterMedia = performance.now();
 
       let targetPresetPrompt = "";
@@ -776,7 +775,7 @@ ${ocrDetectionsText || "No readable visual text detected on screen."}
       )}
 
       <div className="grid md:grid-cols-12 gap-6 items-start">
-        
+
         {/* Left Control Column */}
         <div className="md:col-span-6 space-y-6">
           <GlassCard className="space-y-6 border-slate-200 bg-white shadow-sm" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
@@ -792,10 +791,10 @@ ${ocrDetectionsText || "No readable visual text detected on screen."}
 
             {/* Video File Loader */}
             {!fileDetails ? (
-              <VideoUploader 
-                onFileLoaded={handleFileLoaded} 
-                isProcessing={status === "processing"} 
-                T={T} 
+              <VideoUploader
+                onFileLoaded={handleFileLoaded}
+                isProcessing={status === "processing"}
+                T={T}
               />
             ) : (
               <div className="space-y-4">
@@ -805,7 +804,7 @@ ${ocrDetectionsText || "No readable visual text detected on screen."}
                     <p className="text-[9.5px] text-slate-400 mt-0.5">{fileDetails.size} • {fileDetails.type}</p>
                   </div>
                   {status !== "processing" && (
-                    <button 
+                    <button
                       onClick={removeVideoFile}
                       className="text-xs font-bold text-red-500 hover:text-red-600 transition-colors ml-4"
                     >
@@ -815,10 +814,10 @@ ${ocrDetectionsText || "No readable visual text detected on screen."}
                 </div>
 
                 {videoUrl && (
-                  <VideoPlayer 
-                    videoUrl={videoUrl} 
-                    videoRef={videoRef} 
-                    T={T} 
+                  <VideoPlayer
+                    videoUrl={videoUrl}
+                    videoRef={videoRef}
+                    T={T}
                   />
                 )}
               </div>
@@ -826,20 +825,20 @@ ${ocrDetectionsText || "No readable visual text detected on screen."}
 
             {/* Transcript Area */}
             {transcript && (
-              <TranscriptPanel 
-                transcript={transcript} 
-                setTranscript={setTranscript} 
-                T={T} 
+              <TranscriptPanel
+                transcript={transcript}
+                setTranscript={setTranscript}
+                T={T}
               />
             )}
 
             {/* Frame Gallery Extractor */}
             {videoUrl && (
-              <FrameExtractor 
-                frames={frames} 
-                interval={interval} 
-                setInterval={setIntervalVal} 
-                T={T} 
+              <FrameExtractor
+                frames={frames}
+                interval={interval}
+                setInterval={setIntervalVal}
+                T={T}
               />
             )}
 
@@ -869,8 +868,8 @@ ${ocrDetectionsText || "No readable visual text detected on screen."}
             {status === "processing" ? (
               <ProcessingProgress stage={stage} progress={progress} T={T} />
             ) : (
-              <Button 
-                onClick={triggerVideoTransform} 
+              <Button
+                onClick={triggerVideoTransform}
                 className="w-full text-xs"
                 disabled={!videoUrl}
               >
@@ -884,10 +883,10 @@ ${ocrDetectionsText || "No readable visual text detected on screen."}
 
         {/* Right Output Column */}
         <div className="md:col-span-6">
-          <OutputPanel 
-            output={output} 
-            setOutput={setOutput} 
-            T={T} 
+          <OutputPanel
+            output={output}
+            setOutput={setOutput}
+            T={T}
           />
         </div>
 
