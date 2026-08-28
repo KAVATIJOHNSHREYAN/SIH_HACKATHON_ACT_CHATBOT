@@ -46,47 +46,86 @@ export default function OcrTransformPage() {
     };
   }, [mode]);
 
+  // Stream binder to connect incoming media streams to the Video DOM Ref dynamically
+  useEffect(() => {
+    if (cameraActive && cameraStream && videoRef.current) {
+      console.log("MediaStream received");
+      videoRef.current.srcObject = cameraStream;
+      console.log("Video attached");
+      videoRef.current.play()
+        .then(() => {
+          console.log("Video playing");
+        })
+        .catch((err) => {
+          console.error("Error playing webcam video stream:", err);
+        });
+    }
+  }, [cameraActive, cameraStream]);
+
   const startCamera = async () => {
     try {
       setErrorMsg("");
+      console.log("Requesting camera permission...");
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: "environment" } 
       });
+      console.log("Camera permission granted");
       setCameraStream(stream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
       setCameraActive(true);
       setCameraPermission("granted");
       setCapturedImage(null);
     } catch (err: any) {
-      console.error(err);
+      console.error("Camera access error:", err);
       setCameraPermission("denied");
-      setErrorMsg("Camera permission denied. Please allow camera access in browser settings.");
+      
+      // Detailed user-friendly errors
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        setErrorMsg("Camera permission denied. Please allow camera access in browser settings.");
+      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+        setErrorMsg("No camera detected on this device. Please connect a webcam.");
+      } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+        setErrorMsg("Camera already in use. Please close other applications using the camera.");
+      } else if (window.location.protocol !== "https:" && window.location.hostname !== "localhost") {
+        setErrorMsg("HTTPS security is required to access the camera on remote servers.");
+      } else {
+        setErrorMsg(`Failed to access camera: ${err.message || "Unknown error"}`);
+      }
     }
   };
 
   const stopCamera = () => {
     if (cameraStream) {
-      cameraStream.getTracks().forEach((track) => track.stop());
+      cameraStream.getTracks().forEach((track) => {
+        track.stop();
+        console.log(`Stopped track: ${track.label}`);
+      });
       setCameraStream(null);
     }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    console.log("Webcam released and preview reset");
     setCameraActive(false);
   };
 
   const captureSnapshot = () => {
     if (!videoRef.current) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth || 640;
-    canvas.height = videoRef.current.videoHeight || 480;
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL("image/jpeg");
-      setCapturedImage(dataUrl);
-      setFileBase64(dataUrl);
-      setSelectedFile(null); // clears uploaded file when camera snapshot captured
-      stopCamera();
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = videoRef.current.videoWidth || 640;
+      canvas.height = videoRef.current.videoHeight || 480;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg");
+        console.log("Frame captured");
+        setCapturedImage(dataUrl);
+        setFileBase64(dataUrl);
+        setSelectedFile(null); // clears uploaded file when camera snapshot captured
+        stopCamera();
+      }
+    } catch (err) {
+      console.error("Failed to capture snapshot:", err);
     }
   };
 
@@ -335,7 +374,13 @@ export default function OcrTransformPage() {
               <div className="space-y-4">
                 {cameraActive ? (
                   <div className="relative rounded-2xl overflow-hidden border aspect-video" style={{ borderColor: T.border }}>
-                    <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                    <video 
+                      ref={videoRef} 
+                      autoPlay 
+                      playsInline 
+                      muted 
+                      className="w-full h-full object-cover rounded-lg" 
+                    />
                     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
                       <Button onClick={captureSnapshot} className="bg-purple-600 hover:bg-purple-700 text-xs px-4">
                         Capture Image
