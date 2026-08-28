@@ -78,6 +78,25 @@ export default function AudioTransformPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const qPreset = params.get("preset");
+      const qUpload = params.get("upload");
+      if (qPreset) {
+        setPreset(qPreset as any);
+      }
+      if (qUpload === "true") {
+        setTimeout(() => {
+          const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+          if (fileInput) {
+            fileInput.click();
+          }
+        }, 800);
+      }
+    }
+  }, []);
+
   // Handle timer ticks
   useEffect(() => {
     if (isRecording) {
@@ -308,6 +327,14 @@ export default function AudioTransformPage() {
         targetFormat = "Actions (Extract only action items, owners if available, and deadlines)";
       } else {
         targetFormat = "Summary (Generate a concise professional summary)";
+      }
+
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const qPrompt = params.get("prompt");
+        if (qPrompt) {
+          targetFormat = qPrompt;
+        }
       }
 
       const transformPayload = {

@@ -486,7 +486,24 @@ export default function VideoTransformPage() {
     { id: "markdown", label: "Markdown" },
     { id: "plain", label: "Plain Text" }
   ];
-
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const qPreset = params.get("preset");
+      const qUpload = params.get("upload");
+      if (qPreset) {
+        setPreset(qPreset);
+      }
+      if (qUpload === "true") {
+        setTimeout(() => {
+          const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+          if (fileInput) {
+            fileInput.click();
+          }
+        }, 800);
+      }
+    }
+  }, []);
   const readFileAsDataURL = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -684,6 +701,14 @@ export default function VideoTransformPage() {
         targetPresetPrompt = "Markdown (Format text into detailed clean Markdown)";
       } else {
         targetPresetPrompt = "Plain Text (Clean readable plain text alignment)";
+      }
+
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const qPrompt = params.get("prompt");
+        if (qPrompt) {
+          targetPresetPrompt = qPrompt;
+        }
       }
 
       const combinedText = `

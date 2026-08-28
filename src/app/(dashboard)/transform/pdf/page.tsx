@@ -403,6 +403,25 @@ export default function PdfTransformPage() {
     document.body.appendChild(script);
   }, []);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const qPreset = params.get("preset");
+      const qUpload = params.get("upload");
+      if (qPreset) {
+        setPreset(qPreset);
+      }
+      if (qUpload === "true") {
+        setTimeout(() => {
+          const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+          if (fileInput) {
+            fileInput.click();
+          }
+        }, 800);
+      }
+    }
+  }, []);
+
   const handleFileLoaded = async (file: File, buffer: ArrayBuffer) => {
     setErrorMsg("");
     setOutput("");
@@ -535,6 +554,14 @@ export default function PdfTransformPage() {
         targetPresetPrompt = "Markdown (Reformat document structure cleanly using semantic Markdown styles)";
       } else {
         targetPresetPrompt = "Plain Text (Transform text cleanly maintaining readable alignments)";
+      }
+
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const qPrompt = params.get("prompt");
+        if (qPrompt) {
+          targetPresetPrompt = qPrompt;
+        }
       }
 
       const transformPayload = {

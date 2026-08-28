@@ -47,6 +47,21 @@ export default function OcrTransformPage() {
     };
   }, [mode]);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const qUpload = params.get("upload");
+      if (qUpload === "true") {
+        setTimeout(() => {
+          const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+          if (fileInput) {
+            fileInput.click();
+          }
+        }, 800);
+      }
+    }
+  }, []);
+
   // Tab visibility changes, page unload and tab navigation cleanup listeners
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -250,13 +265,22 @@ export default function OcrTransformPage() {
       const savedOpenaiKey = typeof window !== "undefined" ? localStorage.getItem("openai_api_key") : "";
       const savedCohereKey = typeof window !== "undefined" ? localStorage.getItem("cohere_api_key") : "";
 
+      let customFormat = "OCR Text";
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const qPrompt = params.get("prompt");
+        if (qPrompt) {
+          customFormat = qPrompt;
+        }
+      }
+
       const payload = mode === "upload"
         ? {
             fileData: fileBase64 || undefined,
             text: fileTextContent || undefined,
             fileName: selectedFile?.name,
             fileType: selectedFile?.type,
-            format: "OCR Text",
+            format: customFormat,
             model: selectedModel,
             apiKey: savedApiKey || null,
             openaiKey: savedOpenaiKey || null,
@@ -266,7 +290,7 @@ export default function OcrTransformPage() {
             fileData: capturedImage || undefined,
             fileName: "Camera_Capture.jpeg",
             fileType: "image/jpeg",
-            format: "OCR Text",
+            format: customFormat,
             model: selectedModel,
             apiKey: savedApiKey || null,
             openaiKey: savedOpenaiKey || null,

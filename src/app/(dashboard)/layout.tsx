@@ -18,7 +18,7 @@ const NAVIGATION = [
   { name: "AI Workspace", href: "/chat",        icon: MessageSquare },
   { name: "My Files",     href: "/files",       icon: FolderOpen },
   { name: "Projects",     href: "/projects",    icon: FolderGit2 },
-  { name: "Templates",    href: "/templates",   icon: FileCode },
+  { name: "Quick Actions", href: "/templates",  icon: FileCode },
   { name: "History",      href: "/history",     icon: History },
   { name: "Analytics",    href: "/analytics",   icon: BarChart3 },
   { name: "Settings",     href: "/settings",    icon: Settings },
