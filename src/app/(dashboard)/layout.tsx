@@ -16,7 +16,7 @@ const NAVIGATION = [
   { name: "Dashboard",    href: "/dashboard",  icon: LayoutDashboard },
   { name: "Transform",    href: "/transform",  icon: RefreshCw },
   { name: "AI Workspace", href: "/chat",        icon: MessageSquare },
-  { name: "My Files",     href: "/files",       icon: FolderOpen },
+  { name: "AI Knowledge Hub", href: "/files",  icon: FolderOpen },
   { name: "Projects",     href: "/projects",    icon: FolderGit2 },
   { name: "Quick Actions", href: "/templates",  icon: FileCode },
   { name: "History",      href: "/history",     icon: History },
