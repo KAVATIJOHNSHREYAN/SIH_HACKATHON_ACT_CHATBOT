@@ -312,6 +312,7 @@ function ProcessingProgress({ stage, progress, T }: ProcessingProgressProps) {
 interface ProcessingStatsProps {
   stats: {
     duration: string;
+    fileSize?: string;
     framesCount: number;
     ocrCount: number;
     wordsCount: number;
@@ -324,10 +325,14 @@ function ProcessingStats({ stats, T }: ProcessingStatsProps) {
   if (!stats) return null;
 
   return (
-    <div className="grid grid-cols-3 gap-2 p-3 rounded-xl border text-center" style={{ backgroundColor: T.bgHover, borderColor: T.border }}>
+    <div className="grid grid-cols-4 gap-2 p-3 rounded-xl border text-center" style={{ backgroundColor: T.bgHover, borderColor: T.border }}>
       <div>
         <p className="text-[8px] text-slate-400 font-semibold uppercase" style={{ color: T.textSecondary }}>Video Len</p>
         <p className="text-[11px] font-mono font-bold" style={{ color: T.textPrimary }}>{stats.duration}</p>
+      </div>
+      <div>
+        <p className="text-[8px] text-slate-400 font-semibold uppercase" style={{ color: T.textSecondary }}>File Size</p>
+        <p className="text-[11px] font-mono font-bold" style={{ color: T.textPrimary }}>{stats.fileSize || "N/A"}</p>
       </div>
       <div>
         <p className="text-[8px] text-slate-400 font-semibold uppercase" style={{ color: T.textSecondary }}>Frames Extracted</p>
@@ -498,6 +503,16 @@ export default function VideoTransformPage() {
     setTranscript("");
     setFrames([]);
     setStats(null);
+
+    const MAX_SIZE = 150 * 1024 * 1024; // 150 MB Limit
+    if (file.size > MAX_SIZE) {
+      const sizeStr = `${(file.size / 1024 / 1024).toFixed(2)} MB`;
+      const errMsg = `Video file size (${sizeStr}) exceeds direct browser RAG limit of 150 MB. Please compress the video or upload a smaller clip.`;
+      setErrorMsg(errMsg);
+      alert(errMsg);
+      return;
+    }
+
     setVideoUrl(URL.createObjectURL(file));
     setSelectedVideo(file);
     console.log("upload finished");
@@ -701,6 +716,7 @@ ${ocrDetectionsText || "No readable visual text detected on screen."}
 
       setStats({
         duration: durationStr,
+        fileSize: fileDetails?.size || "Unknown",
         framesCount: extractedFramesList.length,
         ocrCount: ocrSuccessCount,
         wordsCount: rawTranscriptText.split(/\s+/).length,
