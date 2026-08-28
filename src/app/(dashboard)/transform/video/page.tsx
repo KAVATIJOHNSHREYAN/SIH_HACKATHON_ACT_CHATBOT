@@ -452,6 +452,7 @@ export default function VideoTransformPage() {
   const { isDark } = useTheme();
   const T = isDark ? DARK : LIGHT;
 
+  const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
   const [fileDetails, setFileDetails] = useState<{ name: string; size: string; type: string } | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [fileBase64, setFileBase64] = useState<string>("");
@@ -490,6 +491,8 @@ export default function VideoTransformPage() {
     setFrames([]);
     setStats(null);
     setVideoUrl(URL.createObjectURL(file));
+    setSelectedVideo(file);
+    console.log("Upload completed, selectedVideo updated:", file.name);
 
     setFileDetails({
       name: file.name,
@@ -505,10 +508,12 @@ export default function VideoTransformPage() {
   };
 
   const triggerVideoTransform = async () => {
-    if (!videoUrl || !fileBase64) {
+    console.log("Trigger Transform clicked");
+    if (!selectedVideo || !fileBase64) {
       alert("Please upload a video file first.");
       return;
     }
+    console.log("File received by processor:", selectedVideo.name);
 
     const tStart = performance.now();
     setErrorMsg("");
@@ -728,6 +733,7 @@ ${ocrDetectionsText || "No readable visual text detected on screen."}
   };
 
   const removeVideoFile = () => {
+    setSelectedVideo(null);
     setFileDetails(null);
     setVideoUrl(null);
     setFileBase64("");
