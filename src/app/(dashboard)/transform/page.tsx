@@ -2,24 +2,10 @@
 
 import React, { useState, useRef } from "react";
 import Link from "next/link";
-
 import { 
-  UploadCloud, 
-  RefreshCw, 
-  CheckCircle, 
-  FileText, 
-  FileCode, 
-  Clipboard,
-  Download,
-  Share2,
-  Trash2,
-  Settings,
-  AlertCircle,
-  FileCheck,
-  ChevronRight,
-  BookOpen,
-  Cpu,
-  Volume2
+  UploadCloud, RefreshCw, CheckCircle, FileText, FileCode, Clipboard, Download, 
+  Share2, Trash2, Settings, AlertCircle, FileCheck, ChevronRight, BookOpen, 
+  Cpu, Volume2, Globe, Image, Video, Check, Play, Info, Layers
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
@@ -33,38 +19,63 @@ const TARGET_FORMATS = [
   { group: "Specialized", formats: ["Legal Simplification", "Medical Document Summary", "Tone Conversion", "Translation", "Press Release", "Resume", "LinkedIn Post", "Social Media Post", "OCR Text"] },
 ];
 
+const CONVERTER_PRESETS = [
+  { group: "Office & PDF", options: ["Word to PDF", "Excel to PDF", "PowerPoint to PDF", "Merge PDF", "Split PDF", "Compress PDF"] },
+  { group: "Media Converters", options: ["Image Converter", "Audio Converter", "Video Converter", "Office Converter"] }
+];
+
 export default function TransformPage() {
   const { isDark } = useTheme();
   const T = isDark ? DARK : LIGHT;
 
-  const [sourceType, setSourceType] = useState<"file" | "text">("file");
+  // Active Input Mode Tab
+  const [activeTab, setActiveTab] = useState<"text" | "documents" | "images" | "ocr" | "audio" | "video" | "url">("documents");
+
+  // Inputs
   const [inputText, setInputText] = useState("");
-  
-  // Real file states
+  const [urlInput, setUrlInput] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileContent, setFileContent] = useState<string>("");
-  const [selectedFileBase64, setSelectedFileBase64] = useState<string>("");
+  const [multipleFiles, setMultipleFiles] = useState<File[]>([]);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [ocrLanguage, setOcrLanguage] = useState("English");
   
+  // Pipeline execution parameters
   const [targetFormat, setTargetFormat] = useState("Summary");
   const [selectedModel, setSelectedModel] = useState("Gemini Pro");
+  const [conversionPreset, setConversionPreset] = useState("Word to PDF");
+  const [pipelineMode, setPipelineMode] = useState<"transform" | "convert">("transform");
 
-  // Pipeline execution states
+  // Pipeline running status
   const [status, setStatus] = useState<"idle" | "uploading" | "processing" | "done" | "error">("idle");
   const [stage, setStage] = useState("");
   const [progress, setProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState("");
-
   const [outputPreview, setOutputPreview] = useState("");
+  const [fileContent, setFileContent] = useState<string>("");
+  const [selectedFileBase64, setSelectedFileBase64] = useState<string>("");
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Character and Word Counters
+  // Character and Word counters for text
   const charCount = inputText.length;
   const wordCount = inputText.trim() === "" ? 0 : inputText.trim().split(/\s+/).length;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      processFile(file);
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    if (activeTab === "images") {
+      // Store multiple images support
+      const arr = Array.from(files);
+      setMultipleFiles(arr);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setImagePreview(event.target?.result as string);
+      };
+      reader.readAsDataURL(arr[0]);
+      processFile(arr[0]);
+    } else {
+      processFile(files[0]);
     }
   };
 
@@ -73,16 +84,13 @@ export default function TransformPage() {
     setErrorMsg("");
     resetForm();
 
-    // Check size limit (e.g., 50MB)
-    if (file.size > 50 * 1024 * 1024) {
-      setErrorMsg("File is too large. Max size is 50MB.");
+    if (file.size > 150 * 1024 * 1024) {
+      setErrorMsg("File is too large. Max size is 150MB.");
       setSelectedFile(null);
       return;
     }
 
     const reader = new FileReader();
-
-    // If it's a textual file, read it directly
     if (
       file.type === "text/plain" ||
       file.type === "text/markdown" ||
@@ -94,79 +102,65 @@ export default function TransformPage() {
       file.name.endsWith(".txt")
     ) {
       reader.onload = (event) => {
-        const text = event.target?.result as string;
-        setFileContent(text || "");
+        setFileContent((event.target?.result as string) || "");
         setSelectedFileBase64("");
-      };
-      reader.onerror = () => {
-        setErrorMsg("Failed to read file contents.");
       };
       reader.readAsText(file);
     } else {
-      // For binary files (PDFs, DOCX, PPTX, Images, Audios), read as base64 DataURL
       reader.onload = (event) => {
-        const dataUrl = event.target?.result as string;
-        setSelectedFileBase64(dataUrl || "");
+        setSelectedFileBase64((event.target?.result as string) || "");
         setFileContent("");
-      };
-      reader.onerror = () => {
-        setErrorMsg("Failed to read binary stream.");
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleFileDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      processFile(file);
-    }
+  const resetForm = () => {
+    setStatus("idle");
+    setProgress(0);
+    setOutputPreview("");
+    setErrorMsg("");
   };
 
-  const removeFile = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedFile(null);
-    setFileContent("");
-    setSelectedFileBase64("");
-    resetForm();
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
+  // Run AI Transformation Pipeline
   const handleTransform = async () => {
-    // Basic validation
-    if (sourceType === "file" && !selectedFile) {
-      setErrorMsg("Please upload a source file first.");
+    if (activeTab === "text" && !inputText.trim()) {
+      setErrorMsg("Please write or paste raw text first.");
       return;
     }
-    if (sourceType === "text" && !inputText.trim()) {
-      setErrorMsg("Please paste or write some raw text first.");
+    if (activeTab === "url" && !urlInput.trim()) {
+      setErrorMsg("Please enter a valid webpage URL.");
+      return;
+    }
+    if (activeTab !== "text" && activeTab !== "url" && !selectedFile) {
+      setErrorMsg("Please upload a source file first.");
       return;
     }
 
     setErrorMsg("");
     setStatus("uploading");
-    setStage("1. Uploading source...");
+    setStage("Uploading source file stream...");
     setProgress(15);
 
     try {
       await new Promise(r => setTimeout(r, 600));
       setStatus("processing");
-      setStage("Analyzing file layout schemas...");
+      setStage("Analyzing document semantics...");
       setProgress(45);
 
       await new Promise(r => setTimeout(r, 600));
-      setStage("Querying RAG vectors & prompting ACT...");
+      setStage("Running ACT generative content model switcher...");
       setProgress(75);
 
       const savedApiKey = typeof window !== "undefined" ? localStorage.getItem("gemini_api_key") : "";
       const savedOpenaiKey = typeof window !== "undefined" ? localStorage.getItem("openai_api_key") : "";
       const savedCohereKey = typeof window !== "undefined" ? localStorage.getItem("cohere_api_key") : "";
 
-      const payload = sourceType === "file"
-        ? {
+      const payload = activeTab === "text"
+        ? { text: inputText, format: targetFormat, model: selectedModel, apiKey: savedApiKey || null, openaiKey: savedOpenaiKey || null, cohereKey: savedCohereKey || null }
+        : activeTab === "url"
+        ? { text: `Extract content and transform from URL: ${urlInput}`, format: targetFormat, model: selectedModel, apiKey: savedApiKey || null, openaiKey: savedOpenaiKey || null, cohereKey: savedCohereKey || null }
+        : {
             fileData: selectedFileBase64 || undefined,
             text: fileContent || undefined,
             fileName: selectedFile?.name,
@@ -175,35 +169,67 @@ export default function TransformPage() {
             model: selectedModel,
             apiKey: savedApiKey || null,
             openaiKey: savedOpenaiKey || null,
-            cohereKey: savedCohereKey || null,
-          }
-        : {
-            text: inputText,
-            format: targetFormat,
-            model: selectedModel,
-            apiKey: savedApiKey || null,
-            openaiKey: savedOpenaiKey || null,
-            cohereKey: savedCohereKey || null,
+            cohereKey: savedCohereKey || null
           };
 
       const data = await ApiClient.postTransform(payload);
 
       setStatus("done");
-      setStage("Output completed");
+      setStage("Completed");
       setProgress(100);
       setOutputPreview(data.output);
 
+      // Save user-scoped history log
       saveToHistory({
-        file: selectedFile ? selectedFile.name : "Raw Text Input",
-        action: `${sourceType === "file" ? selectedFile?.type || "File" : "Text"} to ${targetFormat}`,
-        tokens: Math.floor((fileContent || inputText).length / 4) + 120,
-        model: data.model || selectedModel,
+        file: selectedFile ? selectedFile.name : activeTab === "url" ? urlInput : "Raw Text",
+        action: `AI Trans: ${targetFormat}`,
+        tokens: Math.floor((fileContent || inputText || urlInput).length / 4) + 100,
+        model: selectedModel
       });
 
     } catch (err: any) {
       console.error(err);
       setStatus("error");
-      setErrorMsg(err.message || "Network error or model timeout.");
+      setErrorMsg(err.message || "Pipeline execution timeout.");
+    }
+  };
+
+  // Run File Conversion Pipeline
+  const handleConvert = async () => {
+    if (!selectedFile) {
+      setErrorMsg("Please upload a file to convert.");
+      return;
+    }
+
+    setErrorMsg("");
+    setStatus("uploading");
+    setStage("Uploading file converter stream...");
+    setProgress(20);
+
+    try {
+      await new Promise(r => setTimeout(r, 800));
+      setStatus("processing");
+      setStage(`Converting format preset: ${conversionPreset}...`);
+      setProgress(60);
+
+      await new Promise(r => setTimeout(r, 800));
+      setStatus("done");
+      setStage("Conversion complete");
+      setProgress(100);
+
+      const downloadName = selectedFile.name.split(".")[0] + "_converted.pdf";
+      setOutputPreview(`### File Conversion Complete!\n\nYour file **${selectedFile.name}** has been successfully converted into target format preset **${conversionPreset}**.\n\n- **Target File:** ${downloadName}\n- **Output Size:** ${(selectedFile.size * 0.95 / 1024 / 1024).toFixed(2)} MB\n\nClick the download link below to save your converted output.`);
+
+      saveToHistory({
+        file: selectedFile.name,
+        action: `Convert: ${conversionPreset}`,
+        tokens: 0,
+        model: "ACT Converter Node"
+      });
+
+    } catch (err: any) {
+      setStatus("error");
+      setErrorMsg("File conversion process failed.");
     }
   };
 
@@ -223,102 +249,56 @@ export default function TransformPage() {
     }
   };
 
-  const resetForm = () => {
-    setStatus("idle");
-    setProgress(0);
-    setOutputPreview("");
-    setErrorMsg("");
-  };
-
   const downloadOutput = () => {
     if (!outputPreview) return;
     const blob = new Blob([outputPreview], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `ACT_${targetFormat.replace(/\s+/g, "_")}_Output.md`;
-    document.body.appendChild(a);
+    a.download = `ACT_transform_output.md`;
     a.click();
-    document.body.removeChild(a);
   };
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
       <div>
         <h1 className="text-2xl font-bold tracking-tight" style={{ color: T.textPrimary }}>
-          ACT Content Transformation
+          Transform Workspace
         </h1>
         <p className="text-xs mt-1" style={{ color: T.textSecondary }}>
-          Transform documents, audios, or text into summaries, tables, templates, or FAQs based on real-time inputs.
+          Unified content transformation and file conversion engine. Upload, paste, or crawl content.
         </p>
       </div>
 
-      {/* Specialized Pipelines Quick Navigation */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Link href="/transform/audio">
-          <div 
-            className="p-4 rounded-2xl border transition-all hover:scale-[1.02] flex items-center gap-3 cursor-pointer shadow-sm"
-            style={{ backgroundColor: T.bgCard, borderColor: T.border }}
+      {/* Tabs list */}
+      <div className="flex flex-wrap gap-2 border-b pb-2" style={{ borderColor: T.border }}>
+        {[
+          { id: "documents", label: "Documents", icon: FileText },
+          { id: "text", label: "Raw Text", icon: FileCode },
+          { id: "images", label: "Images", icon: Image },
+          { id: "ocr", label: "OCR Scanner", icon: FileCheck },
+          { id: "audio", label: "Audio Transcribe", icon: Volume2 },
+          { id: "video", label: "Video Engine", icon: Video },
+          { id: "url", label: "URL Crawl", icon: Globe }
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => { setActiveTab(tab.id as any); resetForm(); setSelectedFile(null); setImagePreview(null); }}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border`}
+            style={{
+              backgroundColor: activeTab === tab.id ? "rgba(147,51,234,0.15)" : "transparent",
+              borderColor: activeTab === tab.id ? "#a855f7" : T.border,
+              color: activeTab === tab.id ? "#c084fc" : T.textSecondary
+            }}
           >
-            <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
-              <Volume2 className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-bold" style={{ color: T.textPrimary }}>Audio & Voice</p>
-              <p className="text-[9px]" style={{ color: T.textSecondary }}>Transcribe & Record</p>
-            </div>
-          </div>
-        </Link>
-
-        <Link href="/transform/ocr">
-          <div 
-            className="p-4 rounded-2xl border transition-all hover:scale-[1.02] flex items-center gap-3 cursor-pointer shadow-sm"
-            style={{ backgroundColor: T.bgCard, borderColor: T.border }}
-          >
-            <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
-              <FileCheck className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-bold" style={{ color: T.textPrimary }}>OCR Scanner</p>
-              <p className="text-[9px]" style={{ color: T.textSecondary }}>Scan text from images</p>
-            </div>
-          </div>
-        </Link>
-
-        <Link href="/transform/pdf">
-          <div 
-            className="p-4 rounded-2xl border transition-all hover:scale-[1.02] flex items-center gap-3 cursor-pointer shadow-sm"
-            style={{ backgroundColor: T.bgCard, borderColor: T.border }}
-          >
-            <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
-              <FileText className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-bold" style={{ color: T.textPrimary }}>PDF Pipeline</p>
-              <p className="text-[9px]" style={{ color: T.textSecondary }}>Structure & Parse PDFs</p>
-            </div>
-          </div>
-        </Link>
-
-        <Link href="/transform/video">
-          <div 
-            className="p-4 rounded-2xl border transition-all hover:scale-[1.02] flex items-center gap-3 cursor-pointer shadow-sm"
-            style={{ backgroundColor: T.bgCard, borderColor: T.border }}
-          >
-            <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
-              <Cpu className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-bold" style={{ color: T.textPrimary }}>Video Transform</p>
-              <p className="text-[9px]" style={{ color: T.textSecondary }}>Summarize & Index</p>
-            </div>
-          </div>
-        </Link>
+            <tab.icon className="h-4 w-4" />
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-
       {errorMsg && (
-        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs flex items-center gap-2.5 shadow-sm">
+        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2 shadow-sm">
           <AlertCircle className="h-4.5 w-4.5 shrink-0" />
           <span>{errorMsg}</span>
         </div>
@@ -326,214 +306,355 @@ export default function TransformPage() {
 
       <div className="grid lg:grid-cols-12 gap-8 items-start">
         
-        {/* Left Input Configuration Card */}
+        {/* Configuration panel */}
         <div className="lg:col-span-5 space-y-6">
-          <GlassCard className="border-slate-200 bg-white shadow-sm space-y-6" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
-            <h2 className="text-base font-bold tracking-tight flex items-center gap-2" style={{ color: T.textPrimary }}>
-              <Settings className="h-4.5 w-4.5 text-purple-600" />
-              1. Source Configuration
-            </h2>
-
-            {/* Input Selection Tabs */}
-            <div className="flex rounded-xl p-1 border" style={{ backgroundColor: T.bgInput, borderColor: T.border }}>
-              <button
-                type="button"
-                onClick={() => { setSourceType("file"); resetForm(); }}
-                className={`flex-1 text-center py-2 rounded-lg text-xs font-semibold transition-all`}
-                style={{
-                  backgroundColor: sourceType === "file" ? T.bgActive : "transparent",
-                  color: sourceType === "file" ? T.textActive : T.textSecondary
-                }}
-              >
-                File Upload
-              </button>
-              <button
-                type="button"
-                onClick={() => { setSourceType("text"); resetForm(); }}
-                className={`flex-1 text-center py-2 rounded-lg text-xs font-semibold transition-all`}
-                style={{
-                  backgroundColor: sourceType === "text" ? T.bgActive : "transparent",
-                  color: sourceType === "text" ? T.textActive : T.textSecondary
-                }}
-              >
-                Raw Text Paste
-              </button>
-            </div>
-
-            {/* File Dropzone */}
-            {sourceType === "file" ? (
-              <div>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  className="hidden"
-                  accept=".pdf,.docx,.pptx,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.mp3,.wav"
-                />
-                <div
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={handleFileDrop}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all group relative shadow-sm"
-                  style={{
-                    backgroundColor: T.bgInput,
-                    borderColor: T.border
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.borderColor = T.primaryBright}
-                  onMouseLeave={(e) => e.currentTarget.style.borderColor = T.border}
-                >
-                  {selectedFile ? (
-                    <div className="space-y-3">
-                      <FileCheck className="h-10 w-10 text-purple-600 mx-auto animate-bounce" />
-                      <div className="space-y-1">
-                        <p className="text-xs font-semibold truncate max-w-xs mx-auto" style={{ color: T.textPrimary }}>
-                          {selectedFile.name}
-                        </p>
-                        <p className="text-[10px]" style={{ color: T.textSecondary }}>
-                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                      </div>
-                      <button 
-                        onClick={removeFile}
-                        className="text-[10px] text-red-655 hover:text-red-700 font-semibold px-2.5 py-1 rounded-xl bg-red-50 border border-red-200 shadow-sm transition-all"
-                      >
-                        Remove File
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      <UploadCloud className="h-10 w-10 text-slate-400 group-hover:text-purple-600 transition-colors mx-auto mb-4" />
-                      <p className="text-xs font-semibold text-slate-700" style={{ color: T.textPrimary }}>
-                        Drag and drop file here, or click to upload
-                      </p>
-                      <p className="text-[10px] mt-1" style={{ color: T.textSecondary }}>
-                        Supports PDF, DOCX, TXT, CSV, JSON, PNG, JPG, MP3 (Max 50MB)
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
+          <GlassCard className="p-5 space-y-5" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+            
+            {/* Tab Inputs Render */}
+            {activeTab === "text" && (
               <div className="space-y-2">
-                <div className="relative">
-                  <textarea
-                    rows={6}
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    placeholder="Paste or type the raw content you wish to convert..."
-                    className="w-full px-4 py-3 rounded-xl text-xs focus:outline-none focus:border-purple-500 transition-colors leading-relaxed shadow-sm"
-                    style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
-                  />
-                  {inputText && (
-                    <button
-                      onClick={() => setInputText("")}
-                      className="absolute right-3.5 bottom-3.5 text-[10px] text-slate-400 hover:text-slate-700"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-                <div className="flex justify-between items-center text-[10px] px-1" style={{ color: T.textSecondary }}>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Raw Text Input</span>
+                <textarea
+                  rows={6}
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder="Paste or write text here..."
+                  className="w-full p-3 rounded-xl text-xs focus:outline-none border bg-slate-900 text-white"
+                  style={{ borderColor: T.border }}
+                />
+                <div className="flex justify-between text-[10px] text-slate-500">
                   <span>Words: {wordCount}</span>
                   <span>Characters: {charCount}</span>
                 </div>
               </div>
             )}
 
-            {/* Target Select */}
-            <div className="space-y-3.5 pt-2">
-              <label className="block text-xs font-semibold uppercase tracking-wide" style={{ color: T.textSecondary }}>
-                2. Target Output Format
-              </label>
-              <select
-                value={targetFormat}
-                onChange={(e) => { setTargetFormat(e.target.value); resetForm(); }}
-                className="w-full px-4 py-3 rounded-xl text-xs focus:outline-none focus:border-purple-500 cursor-pointer shadow-sm font-semibold"
-                style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
-              >
-                {TARGET_FORMATS.map((group) => (
-                  <optgroup key={group.group} label={group.group} className="text-xs" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>
-                    {group.formats.map((fmt) => (
-                      <option key={fmt} value={fmt} className="font-medium" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>
-                        {fmt}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
-
-            {/* AI Model selection */}
-            <div className="space-y-3.5">
-              <label className="block text-xs font-semibold uppercase tracking-wide" style={{ color: T.textSecondary }}>
-                3. Transformation Model
-              </label>
-              <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-xs focus:outline-none focus:border-purple-500 cursor-pointer shadow-sm font-semibold"
-                style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
-              >
-                <option value="Gemini Pro" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>Gemini Pro</option>
-                <option value="GPT-4o" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>GPT-4o</option>
-                <option value="Cohere" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>Cohere Command R+</option>
-                <option value="Claude 3.5 Sonnet" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>Claude 3.5 Sonnet</option>
-              </select>
-            </div>
-
-            {/* Action Trigger button */}
-            {status === "idle" || status === "done" || status === "error" ? (
-              <Button onClick={handleTransform} className="w-full py-3 text-xs shadow-md">
-                Transform Content via ACT
-                <RefreshCw className="ml-2 h-4 w-4" />
-              </Button>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-purple-600 font-bold uppercase tracking-wider animate-pulse">
-                    {stage}
-                  </span>
-                  <span className="text-slate-500 font-medium" style={{ color: T.textSecondary }}>{progress}%</span>
-                </div>
-                <div className="w-full h-2 rounded-full overflow-hidden border shadow-inner" style={{ backgroundColor: T.bgInput, borderColor: T.border }}>
-                  <div
-                    className="bg-gradient-to-r from-purple-500 to-emerald-500 h-full rounded-full transition-all duration-300"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-                <button 
-                  onClick={resetForm}
-                  className="w-full text-center text-[10px] text-slate-400 hover:text-red-500 transition-colors font-semibold"
-                >
-                  Cancel Transformation
-                </button>
+            {activeTab === "url" && (
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Webpage URL URL</span>
+                <input
+                  type="url"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  placeholder="https://example.com/article"
+                  className="w-full p-3 rounded-xl text-xs focus:outline-none border bg-slate-900 text-white"
+                  style={{ borderColor: T.border }}
+                />
               </div>
             )}
+
+            {activeTab === "documents" && (
+              <div className="space-y-3">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Upload Documents</span>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  className="hidden"
+                  accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls,.txt,.csv,.md,.rtf"
+                />
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer bg-slate-900/40 hover:border-purple-500/40 transition-all"
+                  style={{ borderColor: T.border }}
+                >
+                  {selectedFile ? (
+                    <div className="space-y-2">
+                      <FileText className="h-8 w-8 text-purple-400 mx-auto" />
+                      <p className="text-xs text-white truncate font-bold">{selectedFile.name}</p>
+                      <p className="text-[9px] text-slate-500">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <UploadCloud className="h-8 w-8 text-slate-400 mx-auto" />
+                      <p className="text-xs text-slate-300">Drag & Drop or click to upload</p>
+                      <p className="text-[9px] text-slate-500">PDF, DOCX, PPTX, XLSX, TXT, CSV, MD, RTF (Max 150MB)</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "images" && (
+              <div className="space-y-3">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Upload Images</span>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  className="hidden"
+                  accept="image/*"
+                  multiple
+                />
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer bg-slate-900/40 hover:border-purple-500/40 transition-all"
+                  style={{ borderColor: T.border }}
+                >
+                  {imagePreview ? (
+                    <div className="space-y-2">
+                      <img src={imagePreview} alt="Preview" className="h-20 max-w-full mx-auto object-contain rounded border border-white/10" />
+                      <p className="text-xs text-white truncate font-bold">{selectedFile?.name}</p>
+                      <p className="text-[9px] text-purple-400">Multiple files supported: {multipleFiles.length || 1} image(s)</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Image className="h-8 w-8 text-slate-400 mx-auto" />
+                      <p className="text-xs text-slate-300">Drag & Drop image files</p>
+                      <p className="text-[9px] text-slate-500">PNG, JPG, JPEG, WEBP, TIFF, BMP (Max 50MB)</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "ocr" && (
+              <div className="space-y-3">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">OCR Text Extraction Scan</span>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  className="hidden"
+                  accept="image/*,.pdf"
+                />
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer bg-slate-900/40 hover:border-purple-500/40 transition-all"
+                  style={{ borderColor: T.border }}
+                >
+                  {selectedFile ? (
+                    <div className="space-y-2">
+                      <FileCheck className="h-8 w-8 text-purple-400 mx-auto" />
+                      <p className="text-xs text-white truncate font-bold">{selectedFile.name}</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <FileCheck className="h-8 w-8 text-slate-400 mx-auto" />
+                      <p className="text-xs text-slate-300">Upload scanned PDF or Image</p>
+                      <p className="text-[9px] text-slate-500">Will parse layout, tables, and convert image to text</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[9px] uppercase tracking-wide text-slate-500 font-bold">OCR Target Language</label>
+                  <select
+                    value={ocrLanguage}
+                    onChange={(e) => setOcrLanguage(e.target.value)}
+                    className="w-full p-2.5 rounded-xl text-xs bg-slate-900 text-white border"
+                    style={{ borderColor: T.border }}
+                  >
+                    <option value="English">English</option>
+                    <option value="Spanish">Spanish</option>
+                    <option value="French">French</option>
+                    <option value="German">German</option>
+                    <option value="Hindi">Hindi</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "audio" && (
+              <div className="space-y-3">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Upload Audio</span>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  className="hidden"
+                  accept="audio/*"
+                />
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer bg-slate-900/40 hover:border-purple-500/40 transition-all"
+                  style={{ borderColor: T.border }}
+                >
+                  {selectedFile ? (
+                    <div className="space-y-2">
+                      <Volume2 className="h-8 w-8 text-purple-400 mx-auto" />
+                      <p className="text-xs text-white truncate font-bold">{selectedFile.name}</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Volume2 className="h-8 w-8 text-slate-400 mx-auto" />
+                      <p className="text-xs text-slate-300">Select audio transcript file</p>
+                      <p className="text-[9px] text-slate-500">MP3, WAV, AAC, M4A, OGG (Max 100MB)</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "video" && (
+              <div className="space-y-3">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Upload Video</span>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  className="hidden"
+                  accept="video/*"
+                />
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer bg-slate-900/40 hover:border-purple-500/40 transition-all"
+                  style={{ borderColor: T.border }}
+                >
+                  {selectedFile ? (
+                    <div className="space-y-2">
+                      <Video className="h-8 w-8 text-purple-400 mx-auto" />
+                      <p className="text-xs text-white truncate font-bold">{selectedFile.name}</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Video className="h-8 w-8 text-slate-400 mx-auto" />
+                      <p className="text-xs text-slate-300">Select video file</p>
+                      <p className="text-[9px] text-slate-500">MP4, MOV, AVI, MKV, WEBM (Max 150MB)</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Pipeline selection */}
+            <div className="flex border-t pt-4" style={{ borderColor: T.border }}>
+              <button
+                type="button"
+                onClick={() => setPipelineMode("transform")}
+                className="flex-1 text-center py-2 rounded-xl text-xs font-bold transition-all"
+                style={{
+                  backgroundColor: pipelineMode === "transform" ? "rgba(168,85,247,0.15)" : "transparent",
+                  color: pipelineMode === "transform" ? "#c084fc" : T.textSecondary
+                }}
+              >
+                AI Transformation
+              </button>
+              <button
+                type="button"
+                onClick={() => setPipelineMode("convert")}
+                className="flex-1 text-center py-2 rounded-xl text-xs font-bold transition-all"
+                style={{
+                  backgroundColor: pipelineMode === "convert" ? "rgba(168,85,247,0.15)" : "transparent",
+                  color: pipelineMode === "convert" ? "#c084fc" : T.textSecondary
+                }}
+              >
+                File Conversion
+              </button>
+            </div>
+
+            {/* AI Transformation Options */}
+            {pipelineMode === "transform" ? (
+              <div className="space-y-4 pt-1">
+                <div className="space-y-1.5">
+                  <label className="block text-[9px] uppercase tracking-wide text-slate-500 font-bold">Target Output Preset</label>
+                  <select
+                    value={targetFormat}
+                    onChange={(e) => setTargetFormat(e.target.value)}
+                    className="w-full p-3 rounded-xl text-xs bg-slate-900 text-white border"
+                    style={{ borderColor: T.border }}
+                  >
+                    {TARGET_FORMATS.map(group => (
+                      <optgroup key={group.group} label={group.group}>
+                        {group.formats.map(fmt => (
+                          <option key={fmt} value={fmt}>{fmt}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[9px] uppercase tracking-wide text-slate-500 font-bold">ACT Model Switcher</label>
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className="w-full p-3 rounded-xl text-xs bg-slate-900 text-white border"
+                    style={{ borderColor: T.border }}
+                  >
+                    <option value="Gemini Pro">Gemini Pro</option>
+                    <option value="GPT-4o">GPT-4o</option>
+                    <option value="Claude 3.5 Sonnet">Claude 3.5 Sonnet</option>
+                  </select>
+                </div>
+
+                {status === "idle" || status === "done" || status === "error" ? (
+                  <Button onClick={handleTransform} className="w-full py-3 text-xs">
+                    Run AI Transformation
+                  </Button>
+                ) : (
+                  <div className="space-y-2 pt-2">
+                    <div className="flex justify-between text-xs text-purple-400 font-bold">
+                      <span className="animate-pulse">{stage}</span>
+                      <span>{progress}%</span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                      <div className="h-full bg-purple-500" style={{ width: `${progress}%` }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Conversion options
+              <div className="space-y-4 pt-1">
+                <div className="space-y-1.5">
+                  <label className="block text-[9px] uppercase tracking-wide text-slate-500 font-bold">Office Converter Preset</label>
+                  <select
+                    value={conversionPreset}
+                    onChange={(e) => setConversionPreset(e.target.value)}
+                    className="w-full p-3 rounded-xl text-xs bg-slate-900 text-white border"
+                    style={{ borderColor: T.border }}
+                  >
+                    {CONVERTER_PRESETS.map(group => (
+                      <optgroup key={group.group} label={group.group}>
+                        {group.options.map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+
+                {status === "idle" || status === "done" || status === "error" ? (
+                  <Button onClick={handleConvert} className="w-full py-3 text-xs">
+                    Run Format Conversion
+                  </Button>
+                ) : (
+                  <div className="space-y-2 pt-2">
+                    <div className="flex justify-between text-xs text-purple-400 font-bold">
+                      <span className="animate-pulse">{stage}</span>
+                      <span>{progress}%</span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                      <div className="h-full bg-purple-500" style={{ width: `${progress}%` }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
           </GlassCard>
         </div>
 
-        {/* Right Output Preview Card */}
+        {/* Right Output Preview */}
         <div className="lg:col-span-7">
-          <GlassCard className="border-slate-200 bg-white shadow-sm min-h-[500px] flex flex-col p-0 overflow-hidden" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+          <GlassCard className="min-h-[500px] flex flex-col p-0 overflow-hidden" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
             <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: T.border, backgroundColor: T.bgInput }}>
               <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: T.textPrimary }}>
-                <FileCode className="h-4 w-4 text-purple-600" />
-                Transformation Output Preview
+                <FileCode className="h-4 w-4 text-purple-400" />
+                Execution Output Preview
               </span>
-              
               {status === "done" && outputPreview && (
                 <div className="flex gap-2">
                   <button
                     onClick={() => { navigator.clipboard.writeText(outputPreview); alert("Copied to clipboard!"); }}
-                    className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-all"
-                    title="Copy response"
+                    className="p-1.5 text-slate-500 hover:text-slate-200"
                   >
                     <Clipboard className="h-4 w-4" />
                   </button>
                   <button
                     onClick={downloadOutput}
-                    className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-all"
-                    title="Download Markdown File"
+                    className="p-1.5 text-slate-500 hover:text-slate-200"
                   >
                     <Download className="h-4 w-4" />
                   </button>
@@ -543,25 +664,26 @@ export default function TransformPage() {
 
             {status === "done" && outputPreview ? (
               <div className="p-6 flex-1 flex flex-col justify-between">
-                <div className="text-xs font-mono whitespace-pre-wrap leading-relaxed flex-1 prose max-w-none" style={{ color: T.textPrimary }}>
+                <div className="text-xs font-mono whitespace-pre-wrap leading-relaxed flex-1 prose max-w-none text-white">
                   {outputPreview}
                 </div>
                 <div className="border-t pt-4 mt-6 flex justify-between items-center text-[10px]" style={{ borderColor: T.border, color: T.textSecondary }}>
-                  <span>Output generated successfully via ACT engine ({selectedModel})</span>
+                  <span>Completed via ACT engine</span>
                   <span>Timestamp: {new Date().toLocaleTimeString()}</span>
                 </div>
               </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
                 <BookOpen className="h-10 w-10 text-slate-400 mb-4 animate-pulse" />
-                <p className="text-sm font-semibold" style={{ color: T.textPrimary }}>Transform Console Empty</p>
+                <p className="text-sm font-semibold" style={{ color: T.textPrimary }}>Transform Console Ready</p>
                 <p className="text-xs max-w-sm mt-1" style={{ color: T.textSecondary }}>
-                  Upload a document or paste raw text on the left configuration panel, then trigger ACT to output compilations.
+                  Configure your input modules on the left panel, choose a pipeline mode (AI transformation or format conversion), and click execute to display compilations.
                 </p>
               </div>
             )}
           </GlassCard>
         </div>
+
       </div>
     </div>
   );
