@@ -10,9 +10,8 @@ export class ModelManager {
   private static MAX_RETRIES = 3;
   private static INITIAL_BACKOFF = 1000; // 1 second
 
-  // Standardizes model strings to prevent 404s
   private static geminiModels = [
-    "gemini-2.5-pro"
+    "gemini-3.5-flash"
   ];
 
   private static async safeParseJson(res: Response): Promise<any> {
@@ -76,8 +75,8 @@ export class ModelManager {
     }
     const genAI = new GoogleGenerativeAI(activeKey);
     
-    // Resolve frontend selection to stable model identifier
-    let primaryModel = "gemini-2.5-pro";
+    // Route all traffic to Flash because Free Tier API key has 0 quota for Pro models
+    let primaryModel = "gemini-3.5-flash";
 
     return { genAI, primaryModel };
   }
