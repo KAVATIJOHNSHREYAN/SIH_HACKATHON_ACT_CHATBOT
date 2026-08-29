@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { 
@@ -55,6 +55,72 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const avatarUrl     = user?.avatar || "";
 
   const handleLogout = () => { logout(); router.push("/"); };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey) {
+        if (e.key.toLowerCase() === "k") {
+          e.preventDefault();
+          const searchInput = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement;
+          if (searchInput) {
+            searchInput.focus();
+            searchInput.select();
+          } else {
+            router.push("/files");
+          }
+        }
+        else if (e.key.toLowerCase() === "u") {
+          e.preventDefault();
+          const uploadInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+          if (uploadInput) {
+            uploadInput.click();
+          } else {
+            router.push("/files?upload=true");
+          }
+        }
+        else if (e.key.toLowerCase() === "p") {
+          e.preventDefault();
+          router.push("/projects");
+          setTimeout(() => {
+            const buttons = Array.from(document.querySelectorAll("button"));
+            const createBtn = buttons.find(b => b.textContent?.includes("Create Project"));
+            if (createBtn) {
+              createBtn.click();
+            }
+          }, 350);
+        }
+        else if (e.key === "Enter") {
+          e.preventDefault();
+          const buttons = Array.from(document.querySelectorAll("button"));
+          const triggerBtn = buttons.find(b => 
+            b.textContent?.toLowerCase().includes("transform") || 
+            b.textContent?.toLowerCase().includes("process") ||
+            b.textContent?.toLowerCase().includes("ocr") ||
+            b.textContent?.toLowerCase().includes("run")
+          );
+          if (triggerBtn) {
+            triggerBtn.click();
+          }
+        }
+        else if (e.key === "/") {
+          e.preventDefault();
+          const buttons = Array.from(document.querySelectorAll("button"));
+          const chatIconBtn = buttons.find(b => b.querySelector('svg[class*="MessageSquare"]'));
+          const chatbotToggle = document.querySelector('button[class*="fixed"]') as HTMLButtonElement;
+          if (chatIconBtn) {
+            chatIconBtn.click();
+          } else if (chatbotToggle) {
+            chatbotToggle.click();
+          } else {
+            router.push("/chat");
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [router]);
 
   // ── Reusable avatar element ──────────────────────────────────────────────
   const AvatarEl = ({ size = "sm" }: { size?: "sm" | "md" }) => {
