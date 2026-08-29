@@ -46,6 +46,83 @@ export default function KnowledgeCenterPage() {
   const { isDark } = useTheme();
   const T = isDark ? DARK : LIGHT;
 
+  const downloadOpenApi = () => {
+    const openapi = {
+      openapi: "3.0.0",
+      info: {
+        title: "ACT AI Platform API",
+        version: "1.0.0",
+        description: "API spec for transforming documents, running RAG chats, and OCR processing."
+      },
+      paths: {
+        "/api/transform": {
+          "post": {
+            "summary": "Run Content Transformation",
+            "requestBody": {
+              "required": true,
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "text": { "type": "string" },
+                      "format": { "type": "string" },
+                      "model": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "Transformation completed successfully"
+              }
+            }
+          }
+        }
+      }
+    };
+    const blob = new Blob([JSON.stringify(openapi, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "openapi.json";
+    a.click();
+  };
+
+  const downloadPostman = () => {
+    const postman = {
+      info: {
+        name: "ACT Platform API Collection",
+        schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      item: [
+        {
+          "name": "Run Content Transformation",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Source text context...\",\n  \"format\": \"Summary\",\n  \"model\": \"Gemini Pro\"\n}"
+            },
+            "url": {
+              "raw": "https://act.platform/api/transform"
+            }
+          }
+        }
+      ]
+    };
+    const blob = new Blob([JSON.stringify(postman, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "postman_collection.json";
+    a.click();
+  };
+
   const [searchQuery, setSearchQuery] = useState("");
   
   // Interactive Onboarding Checklist
@@ -397,7 +474,7 @@ export default function KnowledgeCenterPage() {
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Downloads</span>
             <div className="grid grid-cols-2 gap-2">
               <button 
-                onClick={() => alert("Downloading OpenAPI Swagger Spec file...")}
+                onClick={downloadOpenApi}
                 className="p-2.5 rounded-xl border text-[10px] font-bold flex items-center justify-between text-slate-300 hover:bg-white/5 transition-all"
                 style={{ borderColor: T.border }}
               >
@@ -405,7 +482,7 @@ export default function KnowledgeCenterPage() {
                 <Download className="h-3.5 w-3.5 text-purple-400" />
               </button>
               <button 
-                onClick={() => alert("Downloading Postman Collection spec...")}
+                onClick={downloadPostman}
                 className="p-2.5 rounded-xl border text-[10px] font-bold flex items-center justify-between text-slate-300 hover:bg-white/5 transition-all"
                 style={{ borderColor: T.border }}
               >
