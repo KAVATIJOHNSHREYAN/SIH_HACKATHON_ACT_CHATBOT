@@ -17,10 +17,13 @@ import {
   HelpCircle,
   ShieldCheck,
   Cpu,
-  Layers
+  Layers,
+  RefreshCw
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
+import { useEmail } from "@/hooks/useEmail";
+import { validateContactForm, ValidationErrors } from "@/utils/validators";
 
 // Demo transforms list
 const DEMO_TRANSFORMS = [
@@ -48,6 +51,68 @@ export default function LandingPage() {
   const [activeDemo, setActiveDemo] = useState(DEMO_TRANSFORMS[0]);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const { isDark } = useTheme();
+
+  // EmailJS states & helper configs
+  const { sendEmail, sending, error, success } = useEmail(
+    "service_o7ht26j",
+    "template_si0hr9j",
+    "mpmBC4w38QBJjbL1S"
+  );
+
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactMessage, setContactMessage] = useState("");
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const handleFieldChange = (field: "name" | "email" | "message", val: string) => {
+    let nameVal = contactName;
+    let emailVal = contactEmail;
+    let msgVal = contactMessage;
+
+    if (field === "name") {
+      nameVal = val;
+      setContactName(val);
+    } else if (field === "email") {
+      emailVal = val;
+      setContactEmail(val);
+    } else if (field === "message") {
+      msgVal = val;
+      setContactMessage(val);
+    }
+
+    const errors = validateContactForm(nameVal, emailVal, msgVal);
+    setValidationErrors(errors);
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const errors = validateContactForm(contactName, contactEmail, contactMessage);
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      setToastMessage("Please fix the validation errors before sending.");
+      setTimeout(() => setToastMessage(null), 4000);
+      return;
+    }
+
+    const result = await sendEmail({
+      from_name: contactName,
+      reply_to: contactEmail,
+      message: contactMessage
+    });
+
+    if (result) {
+      setToastMessage("Your message has been sent successfully. We'll get back to you soon.");
+      setContactName("");
+      setContactEmail("");
+      setContactMessage("");
+      setValidationErrors({});
+    } else {
+      setToastMessage("Failed to send message. Please review entries and try again.");
+    }
+    setTimeout(() => setToastMessage(null), 5000);
+  };
 
   // Dynamic theme colors matching Light Theme requirements & Dark Theme overrides
   const pageBg = isDark ? "#060d1a" : "#f0fdf4";
@@ -446,15 +511,30 @@ export default function LandingPage() {
               <h2 className="text-2xl font-bold text-slate-900 mb-2 text-center">Contact ACT Support</h2>
               <p className="text-slate-600 text-sm text-center mb-6">Need tailored enterprise setup or assistance? Drop us a message.</p>
               
-              <form onSubmit={(e) => { e.preventDefault(); alert("Message sent successfully!"); }} className="space-y-4">
+              <form onSubmit={handleFormSubmit} className="space-y-4">
+                {toastMessage && (
+                  <div className={`p-4 rounded-xl text-xs font-bold mb-4 ${
+                    toastMessage.includes("successfully") 
+                      ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" 
+                      : "bg-red-500/10 border border-red-500/20 text-red-400"
+                  }`}>
+                    {toastMessage}
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Full Name</label>
                   <input
                     type="text"
                     required
+                    value={contactName}
+                    onChange={(e) => handleFieldChange("name", e.target.value)}
                     placeholder="John Doe"
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-sm focus:outline-none focus:border-purple-500 focus:bg-white"
                   />
+                  {validationErrors.name && (
+                    <p className="text-red-400 text-[10px] mt-1 font-bold">{validationErrors.name}</p>
+                  )}
                 </div>
 
                 <div>
@@ -462,24 +542,46 @@ export default function LandingPage() {
                   <input
                     type="email"
                     required
+                    value={contactEmail}
+                    onChange={(e) => handleFieldChange("email", e.target.value)}
                     placeholder="john@example.com"
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-sm focus:outline-none focus:border-purple-500 focus:bg-white"
                   />
+                  {validationErrors.email && (
+                    <p className="text-red-400 text-[10px] mt-1 font-bold">{validationErrors.email}</p>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Message</label>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Message</label>
+                    <span className="text-[10px] font-mono text-slate-500">{contactMessage.length}/1000</span>
+                  </div>
                   <textarea
                     rows={4}
                     required
+                    value={contactMessage}
+                    onChange={(e) => handleFieldChange("message", e.target.value)}
                     placeholder="How can our transformation engine help your pipeline?"
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-sm focus:outline-none focus:border-purple-500 focus:bg-white"
                   />
+                  {validationErrors.message && (
+                    <p className="text-red-400 text-[10px] mt-1 font-bold">{validationErrors.message}</p>
+                  )}
                 </div>
 
-                <Button type="submit" className="w-full">
-                  Send Message
-                  <Send className="ml-2 h-4 w-4" />
+                <Button type="submit" disabled={sending} className="w-full">
+                  {sending ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      Sending...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2">
+                      Send Message
+                      <Send className="h-4 w-4" />
+                    </span>
+                  )}
                 </Button>
               </form>
             </GlassCard>
