@@ -115,6 +115,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             router.push("/chat");
           }
         }
+        else if (e.key.toLowerCase() === "t") {
+          e.preventDefault();
+          router.push("/transform");
+        }
       }
     };
 
