@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { 
   UploadCloud, RefreshCw, CheckCircle, FileText, FileCode, Clipboard, Download, 
   Share2, Trash2, Settings, AlertCircle, FileCheck, ChevronRight, BookOpen, 
-  Cpu, Volume2, Globe, Image, Video, Check, Play, Info, Layers
+  Cpu, Volume2, Globe, Image, Video, Check, Play, Info, Layers, Keyboard, X
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
@@ -54,18 +54,26 @@ export default function TransformPage() {
   const [fileContent, setFileContent] = useState<string>("");
   const [selectedFileBase64, setSelectedFileBase64] = useState<string>("");
 
+  // Shortcut Toast & Help Modals
+  const [shortcutToast, setShortcutToast] = useState<string | null>(null);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Character and Word counters for text
   const charCount = inputText.length;
   const wordCount = inputText.trim() === "" ? 0 : inputText.trim().split(/\s+/).length;
 
+  const triggerToast = (msg: string) => {
+    setShortcutToast(msg);
+    setTimeout(() => setShortcutToast(null), 2500);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     
     if (activeTab === "images") {
-      // Store multiple images support
       const arr = Array.from(files);
       setMultipleFiles(arr);
       const reader = new FileReader();
@@ -120,6 +128,11 @@ export default function TransformPage() {
     setProgress(0);
     setOutputPreview("");
     setErrorMsg("");
+    setSelectedFile(null);
+    setInputText("");
+    setUrlInput("");
+    setImagePreview(null);
+    setMultipleFiles([]);
   };
 
   // Run AI Transformation Pipeline
@@ -179,7 +192,6 @@ export default function TransformPage() {
       setProgress(100);
       setOutputPreview(data.output);
 
-      // Save user-scoped history log
       saveToHistory({
         file: selectedFile ? selectedFile.name : activeTab === "url" ? urlInput : "Raw Text",
         action: `AI Trans: ${targetFormat}`,
@@ -257,28 +269,177 @@ export default function TransformPage() {
     a.href = url;
     a.download = `ACT_transform_output.md`;
     a.click();
+    triggerToast("Output file downloaded successfully!");
   };
 
+  const handleSaveToProject = () => {
+    if (!outputPreview) {
+      triggerToast("No output available to save.");
+      return;
+    }
+    const currentFilesStr = localStorage.getItem("act_user_files") || "[]";
+    const files = JSON.parse(currentFilesStr);
+    const newFile = {
+      id: `saved_${Date.now()}`,
+      name: `ACT_Output_${targetFormat}.md`,
+      type: "Markdown",
+      size: `${(outputPreview.length / 1024).toFixed(2)} KB`,
+      date: new Date().toISOString().split("T")[0],
+      starred: false,
+      summary: outputPreview,
+      tags: ["ACT Output", targetFormat]
+    };
+    localStorage.setItem("act_user_files", JSON.stringify([newFile, ...files]));
+    triggerToast("Saved output to Project Workspace!");
+  };
+
+  // Bind Keyboard Shortcuts logic
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isTyping = activeEl && (
+        activeEl.tagName === "INPUT" || 
+        activeEl.tagName === "TEXTAREA" || 
+        activeEl.hasAttribute("contenteditable")
+      );
+
+      // 1. Esc: Cancel current transformation or close open modals (Allowed when typing)
+      if (e.key === "Escape") {
+        e.preventDefault();
+        if (showShortcutsModal) {
+          setShowShortcutsModal(false);
+          triggerToast("Shortcuts Modal Closed");
+        } else {
+          resetForm();
+          triggerToast("Transformation Reset");
+        }
+        return;
+      }
+
+      // 2. Ctrl + Enter: Start Transformation (Allowed when typing)
+      if (e.ctrlKey && e.key === "Enter") {
+        e.preventDefault();
+        triggerToast("Transformation Started");
+        if (pipelineMode === "transform") {
+          handleTransform();
+        } else {
+          handleConvert();
+        }
+        return;
+      }
+
+      // Rest of the shortcuts are IGNORED if the user is typing
+      if (isTyping) return;
+
+      // Ctrl + keys
+      if (e.ctrlKey) {
+        if (e.key.toLowerCase() === "u") {
+          e.preventDefault();
+          fileInputRef.current?.click();
+          triggerToast("Upload Dialog Opened");
+        }
+        else if (e.key.toLowerCase() === "r") {
+          e.preventDefault();
+          setActiveTab("text");
+          triggerToast("Switched to Raw Text Input");
+        }
+        else if (e.key.toLowerCase() === "d") {
+          e.preventDefault();
+          downloadOutput();
+        }
+        else if (e.key.toLowerCase() === "c") {
+          e.preventDefault();
+          if (outputPreview) {
+            navigator.clipboard.writeText(outputPreview);
+            triggerToast("Copied output to Clipboard!");
+          } else {
+            triggerToast("No output to copy");
+          }
+        }
+        else if (e.key.toLowerCase() === "l") {
+          e.preventDefault();
+          resetForm();
+          triggerToast("Form Cleared");
+        }
+        else if (e.key.toLowerCase() === "s") {
+          e.preventDefault();
+          handleSaveToProject();
+        }
+      }
+
+      // Alt + numbers (Navigation tabs)
+      if (e.altKey) {
+        if (e.key === "1") {
+          e.preventDefault();
+          setActiveTab("documents");
+          triggerToast("Selected Documents Tab");
+        } else if (e.key === "2") {
+          e.preventDefault();
+          setActiveTab("images");
+          triggerToast("Selected Images Tab");
+        } else if (e.key === "3") {
+          e.preventDefault();
+          setActiveTab("ocr");
+          triggerToast("Selected OCR Scanner");
+        } else if (e.key === "4") {
+          e.preventDefault();
+          setActiveTab("audio");
+          triggerToast("Selected Audio Transcribe");
+        } else if (e.key === "5") {
+          e.preventDefault();
+          setActiveTab("video");
+          triggerToast("Selected Video Engine");
+        } else if (e.key === "6") {
+          e.preventDefault();
+          setPipelineMode(pipelineMode === "transform" ? "convert" : "transform");
+          triggerToast(`Switched pipeline to: ${pipelineMode === "transform" ? "File Conversion" : "AI Transformation"}`);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [inputText, urlInput, selectedFile, selectedFileBase64, fileContent, targetFormat, selectedModel, conversionPreset, pipelineMode, outputPreview, showShortcutsModal]);
+
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight" style={{ color: T.textPrimary }}>
-          Transform Workspace
-        </h1>
-        <p className="text-xs mt-1" style={{ color: T.textSecondary }}>
-          Unified content transformation and file conversion engine. Upload, paste, or crawl content.
-        </p>
+    <div className="space-y-8 max-w-7xl mx-auto relative">
+      
+      {/* Shortcut Toast Notification */}
+      {shortcutToast && (
+        <div className="fixed top-6 right-6 z-55 px-4 py-2.5 rounded-xl border bg-slate-900 border-purple-500/30 text-purple-300 text-xs font-bold shadow-2xl animate-fade-in">
+          {shortcutToast}
+        </div>
+      )}
+
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: T.textPrimary }}>
+            Transform Workspace
+          </h1>
+          <p className="text-xs mt-1" style={{ color: T.textSecondary }}>
+            Unified content transformation and file conversion engine. Upload, paste, or crawl content.
+          </p>
+        </div>
+
+        {/* Shortcuts Guide Button */}
+        <button
+          onClick={() => setShowShortcutsModal(true)}
+          className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border bg-purple-600/10 border-purple-500/20 text-purple-400 hover:bg-purple-600/20 transition-all"
+        >
+          <Keyboard className="h-4 w-4" />
+          Shortcuts Guide
+        </button>
       </div>
 
       {/* Tabs list */}
       <div className="flex flex-wrap gap-2 border-b pb-2" style={{ borderColor: T.border }}>
         {[
-          { id: "documents", label: "Documents", icon: FileText },
-          { id: "text", label: "Raw Text", icon: FileCode },
-          { id: "images", label: "Images", icon: Image },
-          { id: "ocr", label: "OCR Scanner", icon: FileCheck },
-          { id: "audio", label: "Audio Transcribe", icon: Volume2 },
-          { id: "video", label: "Video Engine", icon: Video },
+          { id: "documents", label: "Alt+1: Documents", icon: FileText },
+          { id: "text", label: "Ctrl+R: Raw Text", icon: FileCode },
+          { id: "images", label: "Alt+2: Images", icon: Image },
+          { id: "ocr", label: "Alt+3: OCR Scanner", icon: FileCheck },
+          { id: "audio", label: "Alt+4: Audio Transcribe", icon: Volume2 },
+          { id: "video", label: "Alt+5: Video Engine", icon: Video },
           { id: "url", label: "URL Crawl", icon: Globe }
         ].map(tab => (
           <button
@@ -331,7 +492,7 @@ export default function TransformPage() {
 
             {activeTab === "url" && (
               <div className="space-y-2">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Webpage URL URL</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Webpage URL</span>
                 <input
                   type="url"
                   value={urlInput}
@@ -345,7 +506,7 @@ export default function TransformPage() {
 
             {activeTab === "documents" && (
               <div className="space-y-3">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Upload Documents</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Upload Documents (Ctrl+U)</span>
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -539,7 +700,7 @@ export default function TransformPage() {
                   color: pipelineMode === "convert" ? "#c084fc" : T.textSecondary
                 }}
               >
-                File Conversion
+                File Conversion (Alt+6)
               </button>
             </div>
 
@@ -580,7 +741,7 @@ export default function TransformPage() {
 
                 {status === "idle" || status === "done" || status === "error" ? (
                   <Button onClick={handleTransform} className="w-full py-3 text-xs">
-                    Run AI Transformation
+                    Run AI Transformation (Ctrl+Enter)
                   </Button>
                 ) : (
                   <div className="space-y-2 pt-2">
@@ -617,7 +778,7 @@ export default function TransformPage() {
 
                 {status === "idle" || status === "done" || status === "error" ? (
                   <Button onClick={handleConvert} className="w-full py-3 text-xs">
-                    Run Format Conversion
+                    Run Format Conversion (Ctrl+Enter)
                   </Button>
                 ) : (
                   <div className="space-y-2 pt-2">
@@ -644,22 +805,34 @@ export default function TransformPage() {
                 <FileCode className="h-4 w-4 text-purple-400" />
                 Execution Output Preview
               </span>
-              {status === "done" && outputPreview && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => { navigator.clipboard.writeText(outputPreview); alert("Copied to clipboard!"); }}
-                    className="p-1.5 text-slate-500 hover:text-slate-200"
-                  >
-                    <Clipboard className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={downloadOutput}
-                    className="p-1.5 text-slate-500 hover:text-slate-200"
-                  >
-                    <Download className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
+              
+              <div className="flex gap-2">
+                {status === "done" && outputPreview && (
+                  <>
+                    <button
+                      onClick={handleSaveToProject}
+                      className="px-2 py-1 border rounded-lg text-[9px] font-bold text-slate-350 hover:text-white"
+                      title="Save to Project (Ctrl+S)"
+                    >
+                      Ctrl+S: Save Project
+                    </button>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(outputPreview); triggerToast("Copied to clipboard!"); }}
+                      className="p-1.5 text-slate-500 hover:text-slate-200"
+                      title="Copy Output (Ctrl+C)"
+                    >
+                      <Clipboard className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={downloadOutput}
+                      className="p-1.5 text-slate-500 hover:text-slate-200"
+                      title="Download Output (Ctrl+D)"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
             {status === "done" && outputPreview ? (
@@ -685,6 +858,106 @@ export default function TransformPage() {
         </div>
 
       </div>
+
+      {/* Keyboard Shortcuts Guide Modal */}
+      {showShortcutsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <GlassCard className="max-w-md w-full p-6 space-y-4" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+            <div className="flex justify-between items-center border-b pb-2" style={{ borderColor: T.border }}>
+              <span className="text-sm font-bold text-white flex items-center gap-1.5">
+                <Keyboard className="h-4.5 w-4.5 text-purple-400" />
+                Transform Keyboard Shortcuts
+              </span>
+              <button onClick={() => setShowShortcutsModal(false)} className="text-slate-400 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Global Shortcuts</p>
+                <div className="flex justify-between text-xs text-slate-300 font-mono border-b pb-1" style={{ borderColor: T.border }}>
+                  <span className="text-purple-400 font-bold">Ctrl + Shift + T</span>
+                  <span>Open Transform Module</span>
+                </div>
+              </div>
+
+              <div className="space-y-1 pt-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Within Workspace</p>
+                <div className="space-y-1 text-xs text-slate-300 font-mono">
+                  <div className="flex justify-between border-b pb-1" style={{ borderColor: T.border }}>
+                    <span className="text-purple-400 font-bold">Ctrl + U</span>
+                    <span>Focus Upload File Dialog</span>
+                  </div>
+                  <div className="flex justify-between border-b pb-1" style={{ borderColor: T.border }}>
+                    <span className="text-purple-400 font-bold">Ctrl + R</span>
+                    <span>Switch to Raw Text Input</span>
+                  </div>
+                  <div className="flex justify-between border-b pb-1" style={{ borderColor: T.border }}>
+                    <span className="text-purple-400 font-bold">Ctrl + Enter</span>
+                    <span>Execute Transformation/Conversion</span>
+                  </div>
+                  <div className="flex justify-between border-b pb-1" style={{ borderColor: T.border }}>
+                    <span className="text-purple-400 font-bold">Ctrl + C</span>
+                    <span>Copy Output response</span>
+                  </div>
+                  <div className="flex justify-between border-b pb-1" style={{ borderColor: T.border }}>
+                    <span className="text-purple-400 font-bold">Ctrl + D</span>
+                    <span>Download output markdown</span>
+                  </div>
+                  <div className="flex justify-between border-b pb-1" style={{ borderColor: T.border }}>
+                    <span className="text-purple-400 font-bold">Ctrl + L</span>
+                    <span>Reset / Clear current form</span>
+                  </div>
+                  <div className="flex justify-between border-b pb-1" style={{ borderColor: T.border }}>
+                    <span className="text-purple-400 font-bold">Ctrl + S</span>
+                    <span>Save Output to project files</span>
+                  </div>
+                  <div className="flex justify-between border-b pb-1" style={{ borderColor: T.border }}>
+                    <span className="text-purple-400 font-bold">Esc</span>
+                    <span>Cancel task / Close modal</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1 pt-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Navigation Tabs</p>
+                <div className="space-y-1 text-xs text-slate-300 font-mono">
+                  <div className="flex justify-between border-b pb-1" style={{ borderColor: T.border }}>
+                    <span className="text-purple-400 font-bold">Alt + 1</span>
+                    <span>Documents tab</span>
+                  </div>
+                  <div className="flex justify-between border-b pb-1" style={{ borderColor: T.border }}>
+                    <span className="text-purple-400 font-bold">Alt + 2</span>
+                    <span>Images tab</span>
+                  </div>
+                  <div className="flex justify-between border-b pb-1" style={{ borderColor: T.border }}>
+                    <span className="text-purple-400 font-bold">Alt + 3</span>
+                    <span>OCR Scanner tab</span>
+                  </div>
+                  <div className="flex justify-between border-b pb-1" style={{ borderColor: T.border }}>
+                    <span className="text-purple-400 font-bold">Alt + 4</span>
+                    <span>Audio transcription</span>
+                  </div>
+                  <div className="flex justify-between border-b pb-1" style={{ borderColor: T.border }}>
+                    <span className="text-purple-400 font-bold">Alt + 5</span>
+                    <span>Video engine</span>
+                  </div>
+                  <div className="flex justify-between border-b pb-1" style={{ borderColor: T.border }}>
+                    <span className="text-purple-400 font-bold">Alt + 6</span>
+                    <span>Toggle pipeline mode</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button size="sm" onClick={() => setShowShortcutsModal(false)}>Close Guide</Button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
+
     </div>
   );
 }
