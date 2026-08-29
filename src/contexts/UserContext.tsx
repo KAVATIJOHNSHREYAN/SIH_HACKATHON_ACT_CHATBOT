@@ -135,33 +135,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, [persist]);
 
   const logout = useCallback(() => {
+    window.localStorage.removeItem(STORAGE_KEY);
+
     if (typeof window !== "undefined") {
-      try {
-        const userRaw = window.localStorage.getItem("act_user");
-        if (userRaw) {
-          const userObj = JSON.parse(userRaw);
-          if (userObj && userObj.email) {
-            const userSuffix = userObj.email.replace(/[^a-zA-Z0-9]/g, "_");
-            
-            // Clean up all local storage variables belonging to this specific user suffix
-            const keysToRemove: string[] = [];
-            for (let i = 0; i < window.localStorage.length; i++) {
-              const key = window.localStorage.key(i);
-              if (key && key.endsWith(`_${userSuffix}`)) {
-                keysToRemove.push(key);
-              }
-            }
-            keysToRemove.forEach(k => window.localStorage.removeItem(k));
-          }
-        }
-      } catch (e) {
-        // Ignore parsing errors
-      }
-
-      // Destroy session configuration key
-      window.localStorage.removeItem("act_user");
-
-      // Clear session storage
       try {
         window.sessionStorage.clear();
       } catch (e) {}
