@@ -17,6 +17,22 @@ export class ModelManager {
     "gemini-3.7-flash"
   ];
 
+  private static async safeParseJson(res: Response): Promise<any> {
+    const contentType = res.headers.get("content-type");
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `HTTP error ${res.status}`);
+    }
+
+    if (!contentType?.includes("application/json")) {
+      const text = await res.text();
+      throw new Error(`Expected JSON but received: ${text}`);
+    }
+
+    return await res.json();
+  }
+
   /**
    * Helper to execute async functions with exponential backoff for 429 & 503 errors.
    */
@@ -96,7 +112,7 @@ export class ModelManager {
             preamble: systemPrompt
           })
         });
-        const data = await res.json();
+        const data = await this.safeParseJson(res);
         if (data.text) {
           return { text: data.text, modelUsed: "Command A+ (Cohere)" };
         }
@@ -152,7 +168,7 @@ export class ModelManager {
             temperature: 0.7
           })
         });
-        const data = await res.json();
+        const data = await this.safeParseJson(res);
         if (data.choices && data.choices.length > 0) {
           return { text: data.choices[0].message.content, modelUsed: "GPT-4o (OpenAI)" };
         }
@@ -241,7 +257,7 @@ export class ModelManager {
             chat_history: cohereHistory
           })
         });
-        const data = await res.json();
+        const data = await this.safeParseJson(res);
         if (data.text) {
           return { text: data.text, modelUsed: "Command A+ (Cohere)" };
         }
@@ -280,7 +296,7 @@ export class ModelManager {
             temperature: 0.7
           })
         });
-        const data = await res.json();
+        const data = await this.safeParseJson(res);
         if (data.choices && data.choices.length > 0) {
           return { text: data.choices[0].message.content, modelUsed: "GPT-4o (OpenAI)" };
         }
@@ -385,7 +401,7 @@ export class ModelManager {
               model: "text-embedding-3-small"
             })
           });
-          const data = await res.json();
+          const data = await this.safeParseJson(res);
           if (data.data) {
             return data.data.map((item: any) => item.embedding);
           }
@@ -413,7 +429,7 @@ export class ModelManager {
               input_type: "search_document"
             })
           });
-          const data = await res.json();
+          const data = await this.safeParseJson(res);
           if (data.embeddings) {
             return data.embeddings;
           }

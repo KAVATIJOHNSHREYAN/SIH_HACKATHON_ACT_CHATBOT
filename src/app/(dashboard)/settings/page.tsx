@@ -15,6 +15,15 @@ export default function SettingsPage() {
     const fetchEnvKeys = async () => {
       try {
         const res = await fetch("/api/keys");
+        const contentType = res.headers.get("content-type");
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || `HTTP error ${res.status}`);
+        }
+        if (!contentType?.includes("application/json")) {
+          const text = await res.text();
+          throw new Error(`Expected JSON but received: ${text}`);
+        }
         const data = await res.json();
         
         if (typeof window !== "undefined") {

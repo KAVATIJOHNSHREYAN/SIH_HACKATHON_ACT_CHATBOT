@@ -71,7 +71,18 @@ export default function LoginPage() {
         fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
           headers: { Authorization: `Bearer ${accessToken}` }
         })
-          .then((res) => res.json())
+          .then(async (res) => {
+            const contentType = res.headers.get("content-type");
+            if (!res.ok) {
+              const text = await res.text();
+              throw new Error(text || `HTTP error ${res.status}`);
+            }
+            if (!contentType?.includes("application/json")) {
+              const text = await res.text();
+              throw new Error(`Expected JSON but received: ${text}`);
+            }
+            return res.json();
+          })
           .then((data) => {
             if (data.email) {
               login({

@@ -71,8 +71,20 @@ export class ApiClient {
       clearTimeout(timeoutId);
       this.activeControllers.delete(key);
 
+      const contentType = res.headers.get("content-type");
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text);
+      }
+
+      if (!contentType?.includes("application/json")) {
+        const text = await res.text();
+        throw new Error(`Expected JSON but received: ${text}`);
+      }
+
       const data = await res.json();
-      if (!res.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.error || "Request failed.");
       }
       return data;
