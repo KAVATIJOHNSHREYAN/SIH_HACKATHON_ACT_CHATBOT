@@ -115,7 +115,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             router.push("/chat");
           }
         }
-        else if (e.key.toLowerCase() === "t") {
+        else if (e.altKey && e.key === "\\") {
           e.preventDefault();
           router.push("/transform");
         }

@@ -278,7 +278,7 @@ export default function KnowledgeCenterPage() {
     { key: "Ctrl + K", action: "Global Search" },
     { key: "Ctrl + U", action: "Upload File" },
     { key: "Ctrl + P", action: "New Project" },
-    { key: "Ctrl + T", action: "Open Transform Workspace" },
+    { key: "Ctrl + Alt + \\", action: "Open Transform Workspace" },
     { key: "Ctrl + Enter", action: "Run Transformation" },
     { key: "Ctrl + /", action: "Open AI Assistant" }
   ];
