@@ -23,7 +23,7 @@ const NAVIGATION = [
   { name: "Analytics",    href: "/analytics",   icon: BarChart3 },
   { name: "Settings",     href: "/settings",    icon: Settings },
   { name: "Profile",      href: "/profile",     icon: User },
-  { name: "Help & Docs",  href: "/help",        icon: HelpCircle },
+  { name: "Knowledge Center",  href: "/help",        icon: HelpCircle },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
