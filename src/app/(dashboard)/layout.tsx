@@ -115,9 +115,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             router.push("/chat");
           }
         }
-        else if (e.shiftKey && e.key.toLowerCase() === "t") {
+        else if (e.altKey && e.shiftKey && e.key.toLowerCase() === "t") {
           e.preventDefault();
-          router.push("/transform");
+          if (pathname === "/transform") {
+            const focusTarget = document.querySelector('div[class*="dashed"], textarea') as HTMLElement;
+            if (focusTarget) {
+              focusTarget.focus();
+              focusTarget.click();
+            }
+          } else {
+            router.push("/transform");
+          }
         }
       }
     };

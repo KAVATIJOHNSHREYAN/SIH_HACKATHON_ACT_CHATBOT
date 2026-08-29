@@ -877,7 +877,7 @@ export default function TransformPage() {
               <div className="space-y-1">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Global Shortcuts</p>
                 <div className="flex justify-between text-xs text-slate-300 font-mono border-b pb-1" style={{ borderColor: T.border }}>
-                  <span className="text-purple-400 font-bold">Ctrl + Shift + T</span>
+                  <span className="text-purple-400 font-bold">Alt + Shift + T</span>
                   <span>Open Transform Module</span>
                 </div>
               </div>
