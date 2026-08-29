@@ -685,7 +685,7 @@ export default function TransformPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [rawText, urlInput, docFile, imgFiles, ocrFile, audioFile, videoFile, targetFormats, audience, tone, language, detailLevel, communicationObjective, contentStyle, selectedModel, conversionPreset, pipelineMode, outputPreview, showShortcutsModal]);
+  }, [rawText, urlInput, docFile, imgFiles, ocrFile, audioFile, videoFile, targetFormats, audience, tone, language, detailLevel, communicationObjective, contentStyle, selectedModel, conversionPreset, pipelineMode, outputPreview, showShortcutsModal, downloadFormat]);
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto relative">
