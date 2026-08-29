@@ -11,6 +11,12 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
 import { ApiClient } from "@/lib/apiClient";
 import { useTheme, LIGHT, DARK } from "@/contexts/ThemeContext";
+import jsPDF from "jspdf";
+import { Document as DocxDocument, Packer, Paragraph, TextRun } from "docx";
+import pptxgen from "pptxgenjs";
+import * as XLSX from "xlsx";
+import JSZip from "jszip";
+import html2canvas from "html2canvas";
 
 const TARGET_FORMATS = [
   { group: "Summaries & Docs", formats: ["Summary", "Detailed Summary", "Article", "Blog", "Notes", "Meeting Minutes", "Research Summary", "Executive Summary", "Case Study", "Study Notes", "Revision Notes", "Assignment", "Documentation", "Standard Operating Procedure", "Policy Draft", "Technical Documentation", "API Documentation", "README Generator", "White Paper", "Workflow Document"] },
@@ -393,33 +399,158 @@ export default function TransformPage() {
     }
   };
 
-  const downloadOutput = (format: string = downloadFormat) => {
-    if (!outputPreview) return;
-    
-    let mimeType = "text/plain";
-    let extension = format.toLowerCase();
-    let content = outputPreview;
-
-    if (format === "HTML") {
-      mimeType = "text/html";
-      content = `<html><body><pre>${outputPreview}</pre></body></html>`;
-    } else if (format === "JSON") {
-      mimeType = "application/json";
-      content = JSON.stringify({ output: outputPreview }, null, 2);
-    } else if (format === "CSV") {
-      mimeType = "text/csv";
-      content = `Output\n"${outputPreview.replace(/"/g, '""')}"`;
-    } else if (format === "MD") {
-      mimeType = "text/markdown";
+  const getAvailableExportFormats = () => {
+    if (pipelineMode === "convert") {
+      return ["PDF", "DOCX", "DOC", "PPTX", "PPT", "XLSX", "XLS", "CSV", "TXT", "MD", "HTML", "RTF", "ODT", "ODS", "ODP"];
     }
 
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `ACT_transform_output.${extension}`;
-    a.click();
-    triggerToast(`Output file downloaded as ${format}!`);
+    if (activeTab === "images") {
+      return ["PNG", "JPG", "JPEG", "WEBP", "BMP", "TIFF", "SVG"];
+    }
+    if (activeTab === "ocr") {
+      return ["PDF", "DOCX", "TXT", "JSON", "CSV"];
+    }
+    if (activeTab === "audio") {
+      return ["TXT", "DOCX", "PDF", "SRT", "VTT", "JSON"];
+    }
+
+    const t = targetFormats.join(" ").toLowerCase();
+    
+    if (t.includes("table") || t.includes("csv") || t.includes("matrix")) {
+      return ["CSV", "XLSX", "PDF", "DOCX", "JSON"];
+    }
+    if (t.includes("presentation") || t.includes("slide") || t.includes("speaker")) {
+      return ["PPTX", "PDF", "PNG", "JPG", "MD", "HTML"];
+    }
+    if (t.includes("infographic")) {
+      return ["PNG", "JPG", "SVG", "PDF"];
+    }
+    if (t.includes("code") || t.includes("json") || t.includes("markdown") || t.includes("html") || t.includes("readme")) {
+      return ["ZIP", "TXT", "JSON", "PDF", "MD"];
+    }
+    if (t.includes("video") || t.includes("podcast")) {
+      return ["PDF", "DOCX", "TXT", "JSON", "ZIP"];
+    }
+
+    // Default AI Text outputs
+    return ["TXT", "DOCX", "PDF", "HTML", "MD", "RTF", "JSON", "CSV", "XML"];
+  };
+
+  const availableFormats = getAvailableExportFormats();
+
+  useEffect(() => {
+    if (!availableFormats.includes(downloadFormat) && availableFormats.length > 0) {
+      setDownloadFormat(availableFormats[0]);
+    }
+  }, [availableFormats, downloadFormat]);
+
+  const downloadOutput = async (format: string = downloadFormat) => {
+    if (!outputPreview) return;
+    
+    try {
+      const extension = format.toLowerCase();
+      const filename = `ACT_transform_output_${Date.now()}.${extension}`;
+      
+      if (format === "PDF") {
+        const doc = new jsPDF();
+        const splitText = doc.splitTextToSize(outputPreview, 180);
+        doc.text(splitText, 15, 20);
+        doc.save(filename);
+      } 
+      else if (format === "DOCX" || format === "DOC") {
+        const doc = new DocxDocument({
+          sections: [{
+            children: outputPreview.split('\n').map(line => new Paragraph({ children: [new TextRun(line)] }))
+          }]
+        });
+        const blob = await Packer.toBlob(doc);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+      }
+      else if (format === "PPTX" || format === "PPT") {
+        const pres = new pptxgen();
+        const slide = pres.addSlide();
+        slide.addText(outputPreview.substring(0, 500) + (outputPreview.length > 500 ? "..." : ""), { x: 0.5, y: 0.5, w: "90%", h: "90%", fontSize: 14 });
+        await pres.writeFile({ fileName: filename });
+      }
+      else if (format === "XLSX" || format === "XLS") {
+        const ws = XLSX.utils.json_to_sheet([{ output: outputPreview }]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+        XLSX.writeFile(wb, filename);
+      }
+      else if (format === "ZIP") {
+        const zip = new JSZip();
+        zip.file("output.md", outputPreview);
+        zip.file("metadata.json", JSON.stringify({ timestamp: Date.now(), formats: targetFormats }));
+        const blob = await zip.generateAsync({ type: "blob" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+      }
+      else if (["PNG", "JPG", "JPEG", "WEBP", "BMP", "TIFF"].includes(format)) {
+        const tempDiv = document.createElement("div");
+        tempDiv.style.position = "absolute";
+        tempDiv.style.left = "-9999px";
+        tempDiv.style.background = "#fff";
+        tempDiv.style.color = "#000";
+        tempDiv.style.padding = "20px";
+        tempDiv.style.width = "800px";
+        tempDiv.innerText = outputPreview;
+        document.body.appendChild(tempDiv);
+        
+        const canvas = await html2canvas(tempDiv);
+        const imgData = canvas.toDataURL(`image/${format === "JPG" ? "jpeg" : format.toLowerCase()}`);
+        const a = document.createElement("a");
+        a.href = imgData;
+        a.download = filename;
+        a.click();
+        
+        document.body.removeChild(tempDiv);
+      }
+      else {
+        let mimeType = "text/plain";
+        let content = outputPreview;
+
+        if (format === "HTML") {
+          mimeType = "text/html";
+          content = `<html><body><pre>${outputPreview}</pre></body></html>`;
+        } else if (format === "JSON") {
+          mimeType = "application/json";
+          content = JSON.stringify({ output: outputPreview }, null, 2);
+        } else if (format === "CSV") {
+          mimeType = "text/csv";
+          content = `Output\n"${outputPreview.replace(/"/g, '""')}"`;
+        } else if (format === "MD") {
+          mimeType = "text/markdown";
+        } else if (format === "XML") {
+          mimeType = "application/xml";
+          content = `<?xml version="1.0" encoding="UTF-8"?>\n<output>${outputPreview}</output>`;
+        } else if (format === "RTF") {
+          mimeType = "application/rtf";
+        } else if (format === "SVG") {
+          mimeType = "image/svg+xml";
+          content = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><text x="10" y="20" font-family="monospace" font-size="12">${outputPreview.substring(0, 100)}</text></svg>`;
+        }
+
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+      }
+      
+      triggerToast(`Output exported successfully as ${format}!`);
+    } catch (error) {
+      console.error("Export failed:", error);
+      triggerToast(`Error exporting as ${format}. Please try again.`);
+    }
   };
 
   const handleSaveToProject = () => {
@@ -1039,11 +1170,9 @@ export default function TransformPage() {
                         onChange={(e) => setDownloadFormat(e.target.value)}
                         className="bg-transparent text-[10px] font-bold text-slate-300 focus:outline-none cursor-pointer"
                       >
-                        <option value="MD">.MD</option>
-                        <option value="TXT">.TXT</option>
-                        <option value="HTML">.HTML</option>
-                        <option value="JSON">.JSON</option>
-                        <option value="CSV">.CSV</option>
+                        {availableFormats.map(fmt => (
+                          <option key={fmt} value={fmt}>.{fmt}</option>
+                        ))}
                       </select>
                       <button
                         onClick={() => downloadOutput(downloadFormat)}
