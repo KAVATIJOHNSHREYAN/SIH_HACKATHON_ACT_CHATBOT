@@ -1,37 +1,63 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-
 import { 
-  UploadCloud, 
-  RefreshCw, 
-  CheckCircle, 
-  FileText, 
-  FileCode, 
-  Clipboard,
-  Download,
-  Share2,
-  Trash2,
-  Settings,
-  AlertCircle,
-  FileCheck,
-  ChevronRight,
-  BookOpen,
-  Cpu,
-  Volume2
+  UploadCloud, RefreshCw, CheckCircle, FileText, FileCode, Clipboard, Download, 
+  Share2, Trash2, Settings, AlertCircle, FileCheck, ChevronRight, BookOpen, Cpu, 
+  Volume2, Image as ImageIcon, Music, Video, Layers, ListChecks, HelpCircle, FileSpreadsheet, 
+  Presentation, BarChart3, Wand2, Sparkles, Check, Play
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
 import { ApiClient } from "@/lib/apiClient";
 import { useTheme, LIGHT, DARK } from "@/contexts/ThemeContext";
 
-const TARGET_FORMATS = [
-  { group: "Summaries & Docs", formats: ["Summary", "Detailed Summary", "Article", "Blog", "Notes", "Meeting Minutes", "Research Summary"] },
-  { group: "Structured & Code", formats: ["JSON", "CSV", "Markdown", "HTML", "Code Explanation", "Code Documentation"] },
-  { group: "Study & Testing", formats: ["MCQs", "Flashcards", "FAQ"] },
-  { group: "Specialized", formats: ["Legal Simplification", "Medical Document Summary", "Tone Conversion", "Translation", "Press Release", "Resume", "LinkedIn Post", "Social Media Post", "OCR Text"] },
+// Detailed conversion mapping based on detected format
+const CONVERSION_MAP: Record<string, string[]> = {
+  pdf: ["Word (.docx)", "Excel (.xlsx)", "PowerPoint (.pptx)", "Images (.png)", "Text (.txt)", "Markdown (.md)"],
+  doc: ["PDF (.pdf)", "PowerPoint (.pptx)", "HTML (.html)", "Markdown (.md)"],
+  docx: ["PDF (.pdf)", "PowerPoint (.pptx)", "HTML (.html)", "Markdown (.md)"],
+  xls: ["PDF (.pdf)", "CSV (.csv)", "Word (.docx)", "PowerPoint (.pptx)"],
+  xlsx: ["PDF (.pdf)", "CSV (.csv)", "Word (.docx)", "PowerPoint (.pptx)"],
+  ppt: ["PDF (.pdf)", "Images (.png)", "Word (.docx)", "Text (.txt)"],
+  pptx: ["PDF (.pdf)", "Images (.png)", "Word (.docx)", "Text (.txt)"],
+  csv: ["Excel (.xlsx)", "PDF (.pdf)"],
+  txt: ["PDF (.pdf)", "Word (.docx)"],
+  md: ["PDF (.pdf)", "Word (.docx)", "HTML (.html)"],
+  png: ["PDF (.pdf)", "Word (OCR)", "Excel (Table OCR)", "Text (.txt)"],
+  jpg: ["PDF (.pdf)", "Word (OCR)", "Excel (Table OCR)", "Text (.txt)"],
+  jpeg: ["PDF (.pdf)", "Word (OCR)", "Excel (Table OCR)", "Text (.txt)"],
+  webp: ["PDF (.pdf)", "Word (OCR)", "Excel (Table OCR)", "Text (.txt)"],
+  tiff: ["PDF (.pdf)", "Word (OCR)", "Excel (Table OCR)", "Text (.txt)"],
+  bmp: ["PDF (.pdf)", "Word (OCR)", "Excel (Table OCR)", "Text (.txt)"],
+  mp3: ["Transcript", "Summary", "Notes"],
+  wav: ["Transcript", "Summary", "Notes"],
+  m4a: ["Transcript", "Summary", "Notes"],
+  aac: ["Transcript", "Summary", "Notes"],
+  ogg: ["Transcript", "Summary", "Notes"],
+  mp4: ["Transcript", "Summary", "Meeting Minutes"],
+  mov: ["Transcript", "Summary", "Meeting Minutes"],
+  avi: ["Transcript", "Summary", "Meeting Minutes"],
+  mkv: ["Transcript", "Summary", "Meeting Minutes"],
+  webm: ["Transcript", "Summary", "Meeting Minutes"]
+};
+
+// Available AI Transformations
+const AI_TRANSFORMATIONS = [
+  "None (Standard Conversion)", "Summarize", "Rewrite", "Translate", "Explain", "Simplify", 
+  "Improve Writing", "Extract Tables", "Extract Key Points", "Extract Entities", 
+  "Generate FAQ", "Generate MCQs", "Generate Flashcards", "Convert to JSON", 
+  "Convert to Markdown", "OCR Text Extraction", "Create Blog Draft", "Create LinkedIn Post", 
+  "Create Tweet Thread", "Create Presentation Script", "Generate Report", 
+  "Generate Meeting Notes", "Generate Email", "Generate Documentation"
 ];
+
+interface Project {
+  id: string;
+  name: string;
+  category: string;
+}
 
 export default function TransformPage() {
   const { isDark } = useTheme();
@@ -40,26 +66,44 @@ export default function TransformPage() {
   const [sourceType, setSourceType] = useState<"file" | "text">("file");
   const [inputText, setInputText] = useState("");
   
-  // Real file states
+  // File details
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [detectedExt, setDetectedExt] = useState<string>("");
   const [fileContent, setFileContent] = useState<string>("");
   const [selectedFileBase64, setSelectedFileBase64] = useState<string>("");
   
-  const [targetFormat, setTargetFormat] = useState("Summary");
+  // Output configuration
+  const [targetFormat, setTargetFormat] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState("Gemini Pro");
+  const [aiTransform, setAiTransform] = useState("None (Standard Conversion)");
+  const [selectedProjectId, setSelectedProjectId] = useState("none");
+  const [projects, setProjects] = useState<Project[]>([]);
 
-  // Pipeline execution states
-  const [status, setStatus] = useState<"idle" | "uploading" | "processing" | "done" | "error">("idle");
+  // Pipeline execution status
+  const [status, setStatus] = useState<"idle" | "converting" | "done" | "error">("idle");
   const [stage, setStage] = useState("");
   const [progress, setProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState("");
+  const [processingTime, setProcessingTime] = useState(0);
+  const [tokenUsage, setTokenUsage] = useState(0);
 
   const [outputPreview, setOutputPreview] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Character and Word Counters
-  const charCount = inputText.length;
-  const wordCount = inputText.trim() === "" ? 0 : inputText.trim().split(/\s+/).length;
+  // Load project binders for Project Integration selector
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("act_assistant_projects_workspace_details");
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            setProjects(parsed);
+          }
+        } catch {}
+      }
+    }
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -73,44 +117,39 @@ export default function TransformPage() {
     setErrorMsg("");
     resetForm();
 
-    // Check size limit (e.g., 50MB)
-    if (file.size > 50 * 1024 * 1024) {
-      setErrorMsg("File is too large. Max size is 50MB.");
-      setSelectedFile(null);
-      return;
+    const nameParts = file.name.split(".");
+    const ext = nameParts.length > 1 ? nameParts[nameParts.length - 1].toLowerCase() : "";
+    setDetectedExt(ext);
+
+    // Auto select target format
+    const validTargets = CONVERSION_MAP[ext] || [];
+    if (validTargets.length > 0) {
+      setTargetFormat(validTargets[0]);
+    } else {
+      setTargetFormat("Text (.txt)");
     }
 
     const reader = new FileReader();
 
-    // If it's a textual file, read it directly
     if (
       file.type === "text/plain" ||
       file.type === "text/markdown" ||
       file.type === "text/csv" ||
       file.type === "application/json" ||
-      file.name.endsWith(".md") ||
-      file.name.endsWith(".csv") ||
-      file.name.endsWith(".json") ||
-      file.name.endsWith(".txt")
+      ext === "md" ||
+      ext === "csv" ||
+      ext === "json" ||
+      ext === "txt"
     ) {
       reader.onload = (event) => {
-        const text = event.target?.result as string;
-        setFileContent(text || "");
+        setFileContent(event.target?.result as string || "");
         setSelectedFileBase64("");
-      };
-      reader.onerror = () => {
-        setErrorMsg("Failed to read file contents.");
       };
       reader.readAsText(file);
     } else {
-      // For binary files (PDFs, DOCX, PPTX, Images, Audios), read as base64 DataURL
       reader.onload = (event) => {
-        const dataUrl = event.target?.result as string;
-        setSelectedFileBase64(dataUrl || "");
+        setSelectedFileBase64(event.target?.result as string || "");
         setFileContent("");
-      };
-      reader.onerror = () => {
-        setErrorMsg("Failed to read binary stream.");
       };
       reader.readAsDataURL(file);
     }
@@ -127,6 +166,8 @@ export default function TransformPage() {
   const removeFile = (e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedFile(null);
+    setDetectedExt("");
+    setTargetFormat("");
     setFileContent("");
     setSelectedFileBase64("");
     resetForm();
@@ -135,8 +176,18 @@ export default function TransformPage() {
     }
   };
 
+  // Estimates conversion processing speed in ms
+  const estimateProcessingTime = () => {
+    if (!selectedFile) return 3000;
+    const size = selectedFile.size;
+    if (detectedExt === "mp4" || detectedExt === "webm" || detectedExt === "mp3") {
+      return 12000; // Audios/Videos take longer
+    }
+    if (size > 10 * 1024 * 1024) return 8000;
+    return 4000;
+  };
+
   const handleTransform = async () => {
-    // Basic validation
     if (sourceType === "file" && !selectedFile) {
       setErrorMsg("Please upload a source file first.");
       return;
@@ -147,23 +198,32 @@ export default function TransformPage() {
     }
 
     setErrorMsg("");
-    setStatus("uploading");
-    setStage("1. Uploading source...");
-    setProgress(15);
+    setStatus("converting");
+    setProgress(5);
+    setStage("1. Parsing document boundaries...");
+
+    const totalEstimatedTime = estimateProcessingTime();
+    const startTimestamp = Date.now();
+
+    // Progress bar simulation matching estimated latency
+    const interval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 90) {
+          clearInterval(interval);
+          return 90;
+        }
+        return prev + 5;
+      });
+    }, totalEstimatedTime / 18);
 
     try {
-      await new Promise(r => setTimeout(r, 600));
-      setStatus("processing");
-      setStage("Analyzing file layout schemas...");
-      setProgress(45);
-
-      await new Promise(r => setTimeout(r, 600));
-      setStage("Querying RAG vectors & prompting ACT...");
-      setProgress(75);
-
       const savedApiKey = typeof window !== "undefined" ? localStorage.getItem("gemini_api_key") : "";
       const savedOpenaiKey = typeof window !== "undefined" ? localStorage.getItem("openai_api_key") : "";
       const savedCohereKey = typeof window !== "undefined" ? localStorage.getItem("cohere_api_key") : "";
+
+      const promptModifier = aiTransform !== "None (Standard Conversion)" 
+        ? `Additionally apply this AI action: ${aiTransform}` 
+        : `Convert input context format to ${targetFormat}`;
 
       const payload = sourceType === "file"
         ? {
@@ -173,6 +233,7 @@ export default function TransformPage() {
             fileType: selectedFile?.type,
             format: targetFormat,
             model: selectedModel,
+            promptOverride: promptModifier,
             apiKey: savedApiKey || null,
             openaiKey: savedOpenaiKey || null,
             cohereKey: savedCohereKey || null,
@@ -181,45 +242,124 @@ export default function TransformPage() {
             text: inputText,
             format: targetFormat,
             model: selectedModel,
+            promptOverride: promptModifier,
             apiKey: savedApiKey || null,
             openaiKey: savedOpenaiKey || null,
             cohereKey: savedCohereKey || null,
           };
 
+      setStage("2. Executing semantic conversion via LLMSwitcher...");
       const data = await ApiClient.postTransform(payload);
 
-      setStatus("done");
-      setStage("Output completed");
+      clearInterval(interval);
       setProgress(100);
+      setStatus("done");
+      setStage("Transformation output ready!");
+
+      const duration = Date.now() - startTimestamp;
+      const tokens = Math.floor(((fileContent || inputText).length + data.output.length) / 4.2) + 180;
+      setProcessingTime(duration);
+      setTokenUsage(tokens);
       setOutputPreview(data.output);
 
+      // Save to global user-scoped History log
       saveToHistory({
-        file: selectedFile ? selectedFile.name : "Raw Text Input",
-        action: `${sourceType === "file" ? selectedFile?.type || "File" : "Text"} to ${targetFormat}`,
-        tokens: Math.floor((fileContent || inputText).length / 4) + 120,
-        model: data.model || selectedModel,
+        fileName: selectedFile ? selectedFile.name : "Text Snippet",
+        action: `${sourceType === "file" ? detectedExt.toUpperCase() : "TXT"} → ${targetFormat}`,
+        model: selectedModel,
+        time: duration,
+        tokens: tokens,
+        size: selectedFile ? selectedFile.size : inputText.length,
       });
 
+      // Save converted output to selected Project binder
+      if (selectedProjectId !== "none") {
+        saveFileToProject(selectedProjectId, selectedFile ? selectedFile.name : "Snippet.txt", data.output);
+      }
+
+      // Update Analytics
+      updateAnalyticsMetrics(tokens);
+
     } catch (err: any) {
+      clearInterval(interval);
       console.error(err);
       setStatus("error");
-      setErrorMsg(err.message || "Network error or model timeout.");
+      setErrorMsg(err.message || "Failed to finalize pipeline. Check API credentials.");
     }
   };
 
-  const saveToHistory = (item: { file: string; action: string; tokens: number; model: string }) => {
+  const saveToHistory = (item: { fileName: string; action: string; model: string; time: number; tokens: number; size: number }) => {
     if (typeof window !== "undefined") {
       const historyStr = localStorage.getItem("act_transform_history") || "[]";
-      const history = JSON.parse(historyStr);
-      const newJob = {
-        id: Date.now(),
-        file: item.file,
-        action: item.action,
-        date: new Date().toISOString().split("T")[0],
-        tokens: item.tokens.toString(),
-        status: "Completed"
+      let historyList = [];
+      try {
+        historyList = JSON.parse(historyStr);
+      } catch {}
+      
+      const newRecord = {
+        id: `tr_${Date.now()}`,
+        userId: "session_user",
+        userEmail: "active_session",
+        projectId: selectedProjectId !== "none" ? selectedProjectId : undefined,
+        projectName: selectedProjectId !== "none" ? projects.find(p => p.id === selectedProjectId)?.name : undefined,
+        sourceFileName: item.fileName,
+        fileType: detectedExt || "txt",
+        transformationType: item.action,
+        modelUsed: item.model,
+        processingTime: item.time,
+        inputTokens: Math.floor(item.tokens * 0.4),
+        outputTokens: Math.floor(item.tokens * 0.6),
+        totalTokens: item.tokens,
+        fileSize: item.size,
+        status: "Success",
+        createdAt: new Date().toISOString(),
+        favorite: false
       };
-      localStorage.setItem("act_transform_history", JSON.stringify([newJob, ...history]));
+      
+      localStorage.setItem("act_transform_history", JSON.stringify([newRecord, ...historyList]));
+    }
+  };
+
+  const saveFileToProject = (projId: string, originalName: string, outputText: string) => {
+    if (typeof window !== "undefined") {
+      const filesStr = localStorage.getItem("act_user_files") || "[]";
+      let filesList = [];
+      try {
+        filesList = JSON.parse(filesStr);
+      } catch {}
+
+      const nameParts = originalName.split(".");
+      const baseName = nameParts.slice(0, -1).join(".");
+      const newFileName = `${baseName}_converted_${targetFormat.replace(/[^a-zA-Z0-9]/g, "_")}.md`;
+
+      const newFileObj = {
+        id: `f_${Date.now()}`,
+        name: newFileName,
+        size: outputText.length,
+        type: "text/markdown",
+        projectId: projId,
+        uploadedAt: new Date().toISOString(),
+        tag: "Output",
+        summary: `AI generated transformation: ${aiTransform} on ${originalName}.`,
+        favorite: false
+      };
+
+      localStorage.setItem("act_user_files", JSON.stringify([newFileObj, ...filesList]));
+    }
+  };
+
+  const updateAnalyticsMetrics = (tokensUsed: number) => {
+    if (typeof window !== "undefined") {
+      const statsStr = localStorage.getItem("act_analytics_stats");
+      let stats = { totalTransformations: 0, totalFiles: 0, totalTokens: 0 };
+      if (statsStr) {
+        try {
+          stats = JSON.parse(statsStr);
+        } catch {}
+      }
+      stats.totalTransformations += 1;
+      stats.totalTokens += tokensUsed;
+      localStorage.setItem("act_analytics_stats", JSON.stringify(stats));
     }
   };
 
@@ -236,103 +376,35 @@ export default function TransformPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `ACT_${targetFormat.replace(/\s+/g, "_")}_Output.md`;
+    a.download = `ACT_Converted_${detectedExt || "output"}.md`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   };
 
+  const validOutputFormats = detectedExt ? (CONVERSION_MAP[detectedExt] || ["Text (.txt)"]) : ["Text (.txt)"];
+
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
+    <div className="space-y-8 max-w-7xl mx-auto pb-16">
+      
+      {/* Title */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight" style={{ color: T.textPrimary }}>
-          ACT Content Transformation
+          Universal Document Processing Suite
         </h1>
         <p className="text-xs mt-1" style={{ color: T.textSecondary }}>
-          Transform documents, audios, or text into summaries, tables, templates, or FAQs based on real-time inputs.
+          Convert, process, edit, and apply AI transformations across PDF, Word, Excel, PowerPoint, Images, Audio, and Video files.
         </p>
       </div>
 
-      {/* Specialized Pipelines Quick Navigation */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Link href="/transform/audio">
-          <div 
-            className="p-4 rounded-2xl border transition-all hover:scale-[1.02] flex items-center gap-3 cursor-pointer shadow-sm"
-            style={{ backgroundColor: T.bgCard, borderColor: T.border }}
-          >
-            <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
-              <Volume2 className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-bold" style={{ color: T.textPrimary }}>Audio & Voice</p>
-              <p className="text-[9px]" style={{ color: T.textSecondary }}>Transcribe & Record</p>
-            </div>
-          </div>
-        </Link>
-
-        <Link href="/transform/ocr">
-          <div 
-            className="p-4 rounded-2xl border transition-all hover:scale-[1.02] flex items-center gap-3 cursor-pointer shadow-sm"
-            style={{ backgroundColor: T.bgCard, borderColor: T.border }}
-          >
-            <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
-              <FileCheck className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-bold" style={{ color: T.textPrimary }}>OCR Scanner</p>
-              <p className="text-[9px]" style={{ color: T.textSecondary }}>Scan text from images</p>
-            </div>
-          </div>
-        </Link>
-
-        <Link href="/transform/pdf">
-          <div 
-            className="p-4 rounded-2xl border transition-all hover:scale-[1.02] flex items-center gap-3 cursor-pointer shadow-sm"
-            style={{ backgroundColor: T.bgCard, borderColor: T.border }}
-          >
-            <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
-              <FileText className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-bold" style={{ color: T.textPrimary }}>PDF Pipeline</p>
-              <p className="text-[9px]" style={{ color: T.textSecondary }}>Structure & Parse PDFs</p>
-            </div>
-          </div>
-        </Link>
-
-        <Link href="/transform/video">
-          <div 
-            className="p-4 rounded-2xl border transition-all hover:scale-[1.02] flex items-center gap-3 cursor-pointer shadow-sm"
-            style={{ backgroundColor: T.bgCard, borderColor: T.border }}
-          >
-            <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
-              <Cpu className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-bold" style={{ color: T.textPrimary }}>Video Transform</p>
-              <p className="text-[9px]" style={{ color: T.textSecondary }}>Summarize & Index</p>
-            </div>
-          </div>
-        </Link>
-      </div>
-
-
-      {errorMsg && (
-        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs flex items-center gap-2.5 shadow-sm">
-          <AlertCircle className="h-4.5 w-4.5 shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
-
       <div className="grid lg:grid-cols-12 gap-8 items-start">
         
-        {/* Left Input Configuration Card */}
+        {/* Left Config Panel */}
         <div className="lg:col-span-5 space-y-6">
-          <GlassCard className="border-slate-200 bg-white shadow-sm space-y-6" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
-            <h2 className="text-base font-bold tracking-tight flex items-center gap-2" style={{ color: T.textPrimary }}>
-              <Settings className="h-4.5 w-4.5 text-purple-600" />
-              1. Source Configuration
-            </h2>
+          <GlassCard className="p-6 space-y-5" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b pb-2" style={{ borderColor: T.border }}>
+              1. Upload Document / File
+            </h3>
 
             {/* Input Selection Tabs */}
             <div className="flex rounded-xl p-1 border" style={{ backgroundColor: T.bgInput, borderColor: T.border }}>
@@ -356,11 +428,10 @@ export default function TransformPage() {
                   color: sourceType === "text" ? T.textActive : T.textSecondary
                 }}
               >
-                Raw Text Paste
+                Raw Text Snippet
               </button>
             </div>
 
-            {/* File Dropzone */}
             {sourceType === "file" ? (
               <div>
                 <input
@@ -368,172 +439,157 @@ export default function TransformPage() {
                   ref={fileInputRef}
                   onChange={handleFileChange}
                   className="hidden"
-                  accept=".pdf,.docx,.pptx,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.mp3,.wav"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.rtf,.csv,image/*,audio/*,video/*"
                 />
                 <div
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={handleFileDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all group relative shadow-sm"
-                  style={{
-                    backgroundColor: T.bgInput,
-                    borderColor: T.border
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.borderColor = T.primaryBright}
-                  onMouseLeave={(e) => e.currentTarget.style.borderColor = T.border}
+                  className="border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all hover:border-purple-500 bg-slate-900"
+                  style={{ borderColor: T.border }}
                 >
                   {selectedFile ? (
                     <div className="space-y-3">
-                      <FileCheck className="h-10 w-10 text-purple-600 mx-auto animate-bounce" />
+                      <FileCheck className="h-9 w-9 text-emerald-400 mx-auto" />
                       <div className="space-y-1">
-                        <p className="text-xs font-semibold truncate max-w-xs mx-auto" style={{ color: T.textPrimary }}>
-                          {selectedFile.name}
-                        </p>
-                        <p className="text-[10px]" style={{ color: T.textSecondary }}>
-                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
+                        <p className="text-xs font-bold text-white truncate max-w-xs mx-auto">{selectedFile.name}</p>
+                        <span className="px-2 py-0.5 rounded text-[8px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase">
+                          Detected: {detectedExt}
+                        </span>
                       </div>
-                      <button 
-                        onClick={removeFile}
-                        className="text-[10px] text-red-655 hover:text-red-700 font-semibold px-2.5 py-1 rounded-xl bg-red-50 border border-red-200 shadow-sm transition-all"
-                      >
+                      <button onClick={removeFile} className="text-[10px] text-red-400 font-bold block mx-auto underline">
                         Remove File
                       </button>
                     </div>
                   ) : (
-                    <div>
-                      <UploadCloud className="h-10 w-10 text-slate-400 group-hover:text-purple-600 transition-colors mx-auto mb-4" />
-                      <p className="text-xs font-semibold text-slate-700" style={{ color: T.textPrimary }}>
-                        Drag and drop file here, or click to upload
-                      </p>
-                      <p className="text-[10px] mt-1" style={{ color: T.textSecondary }}>
-                        Supports PDF, DOCX, TXT, CSV, JSON, PNG, JPG, MP3 (Max 50MB)
-                      </p>
+                    <div className="space-y-2">
+                      <UploadCloud className="h-10 w-10 text-slate-500 mx-auto" />
+                      <p className="text-xs font-semibold text-slate-200">Drag and drop file, or click to browse</p>
+                      <p className="text-[9px] text-slate-500">Supports PDF, Office (DOCX, XLSX, PPTX), CSV, Images, Audio, and Video files</p>
                     </div>
                   )}
                 </div>
               </div>
             ) : (
+              <textarea
+                rows={5}
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder="Paste or write raw copy context here..."
+                className="w-full px-4 py-3 rounded-xl text-xs focus:outline-none border bg-slate-900 text-slate-200"
+                style={{ borderColor: T.border }}
+              />
+            )}
+
+            {/* Target Output Configuration */}
+            {selectedFile && (
               <div className="space-y-2">
-                <div className="relative">
-                  <textarea
-                    rows={6}
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    placeholder="Paste or type the raw content you wish to convert..."
-                    className="w-full px-4 py-3 rounded-xl text-xs focus:outline-none focus:border-purple-500 transition-colors leading-relaxed shadow-sm"
-                    style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
-                  />
-                  {inputText && (
-                    <button
-                      onClick={() => setInputText("")}
-                      className="absolute right-3.5 bottom-3.5 text-[10px] text-slate-400 hover:text-slate-700"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-                <div className="flex justify-between items-center text-[10px] px-1" style={{ color: T.textSecondary }}>
-                  <span>Words: {wordCount}</span>
-                  <span>Characters: {charCount}</span>
-                </div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Target Output Format</label>
+                <select
+                  value={targetFormat}
+                  onChange={(e) => setTargetFormat(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl text-xs focus:outline-none border bg-slate-900 text-slate-200"
+                  style={{ borderColor: T.border }}
+                >
+                  {validOutputFormats.map(fmt => (
+                    <option key={fmt} value={fmt}>{fmt}</option>
+                  ))}
+                </select>
               </div>
             )}
 
-            {/* Target Select */}
-            <div className="space-y-3.5 pt-2">
-              <label className="block text-xs font-semibold uppercase tracking-wide" style={{ color: T.textSecondary }}>
-                2. Target Output Format
-              </label>
+            {/* AI Enhancement option */}
+            <div className="space-y-2">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Optional AI Transformation</label>
               <select
-                value={targetFormat}
-                onChange={(e) => { setTargetFormat(e.target.value); resetForm(); }}
-                className="w-full px-4 py-3 rounded-xl text-xs focus:outline-none focus:border-purple-500 cursor-pointer shadow-sm font-semibold"
-                style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
+                value={aiTransform}
+                onChange={(e) => setAiTransform(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl text-xs focus:outline-none border bg-slate-900 text-slate-200"
+                style={{ borderColor: T.border }}
               >
-                {TARGET_FORMATS.map((group) => (
-                  <optgroup key={group.group} label={group.group} className="text-xs" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>
-                    {group.formats.map((fmt) => (
-                      <option key={fmt} value={fmt} className="font-medium" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>
-                        {fmt}
-                      </option>
-                    ))}
-                  </optgroup>
+                {AI_TRANSFORMATIONS.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
             </div>
 
-            {/* AI Model selection */}
-            <div className="space-y-3.5">
-              <label className="block text-xs font-semibold uppercase tracking-wide" style={{ color: T.textSecondary }}>
-                3. Transformation Model
-              </label>
+            {/* Project Integration Selection */}
+            <div className="space-y-2">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Save to Project Workspace</label>
               <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-xs focus:outline-none focus:border-purple-500 cursor-pointer shadow-sm font-semibold"
-                style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
+                value={selectedProjectId}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl text-xs focus:outline-none border bg-slate-900 text-slate-200"
+                style={{ borderColor: T.border }}
               >
-                <option value="Gemini Pro" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>Gemini Pro</option>
-                <option value="GPT-4o" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>GPT-4o</option>
-                <option value="Cohere" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>Cohere Command R+</option>
-                <option value="Claude 3.5 Sonnet" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>Claude 3.5 Sonnet</option>
+                <option value="none">Do Not Save to Project</option>
+                {projects.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
+                ))}
               </select>
             </div>
 
-            {/* Action Trigger button */}
-            {status === "idle" || status === "done" || status === "error" ? (
-              <Button onClick={handleTransform} className="w-full py-3 text-xs shadow-md">
-                Transform Content via ACT
-                <RefreshCw className="ml-2 h-4 w-4" />
-              </Button>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-purple-600 font-bold uppercase tracking-wider animate-pulse">
-                    {stage}
-                  </span>
-                  <span className="text-slate-500 font-medium" style={{ color: T.textSecondary }}>{progress}%</span>
-                </div>
-                <div className="w-full h-2 rounded-full overflow-hidden border shadow-inner" style={{ backgroundColor: T.bgInput, borderColor: T.border }}>
-                  <div
-                    className="bg-gradient-to-r from-purple-500 to-emerald-500 h-full rounded-full transition-all duration-300"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-                <button 
-                  onClick={resetForm}
-                  className="w-full text-center text-[10px] text-slate-400 hover:text-red-500 transition-colors font-semibold"
-                >
-                  Cancel Transformation
-                </button>
-              </div>
+            {/* Model & Execution */}
+            <div className="space-y-2">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">AI Model Engine</label>
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl text-xs focus:outline-none border bg-slate-900 text-slate-200"
+                style={{ borderColor: T.border }}
+              >
+                <option value="Gemini Pro">Gemini Pro (Default)</option>
+                <option value="GPT-4o">GPT-4o (High Fidelity)</option>
+                <option value="Claude 3.5 Sonnet">Claude 3.5 Sonnet</option>
+              </select>
+            </div>
+
+            {errorMsg && (
+              <p className="text-red-400 text-[10px] font-bold text-center">{errorMsg}</p>
             )}
+
+            {status === "converting" ? (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-[10px] text-purple-400 font-bold animate-pulse">
+                  <span>{stage}</span>
+                  <span>{progress}%</span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                  <div className="h-full bg-purple-500 transition-all duration-200" style={{ width: `${progress}%` }} />
+                </div>
+              </div>
+            ) : (
+              <Button onClick={handleTransform} className="w-full py-2.5 text-xs text-white bg-purple-650 hover:bg-purple-750">
+                Execute Process Suite
+                <Wand2 className="ml-2 h-4 w-4" />
+              </Button>
+            )}
+
           </GlassCard>
         </div>
 
-        {/* Right Output Preview Card */}
+        {/* Right Output Panel */}
         <div className="lg:col-span-7">
-          <GlassCard className="border-slate-200 bg-white shadow-sm min-h-[500px] flex flex-col p-0 overflow-hidden" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
-            <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: T.border, backgroundColor: T.bgInput }}>
-              <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: T.textPrimary }}>
-                <FileCode className="h-4 w-4 text-purple-600" />
-                Transformation Output Preview
+          <GlassCard className="min-h-[520px] flex flex-col justify-between overflow-hidden" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
+            <div className="px-5 py-3 border-b flex justify-between items-center bg-slate-950/40" style={{ borderColor: T.border }}>
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-purple-400 animate-spin" />
+                OUTPUT RESOLUTION PANEL
               </span>
-              
+
               {status === "done" && outputPreview && (
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => { navigator.clipboard.writeText(outputPreview); alert("Copied to clipboard!"); }}
-                    className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-all"
-                    title="Copy response"
+                  <button 
+                    onClick={() => { navigator.clipboard.writeText(outputPreview); alert("Copied output!"); }}
+                    className="p-1 rounded bg-slate-900 border hover:bg-white/5 text-slate-300"
+                    style={{ borderColor: T.border }}
                   >
                     <Clipboard className="h-4 w-4" />
                   </button>
-                  <button
+                  <button 
                     onClick={downloadOutput}
-                    className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-all"
-                    title="Download Markdown File"
+                    className="p-1 rounded bg-slate-900 border hover:bg-white/5 text-slate-300"
+                    style={{ borderColor: T.border }}
                   >
                     <Download className="h-4 w-4" />
                   </button>
@@ -541,28 +597,39 @@ export default function TransformPage() {
               )}
             </div>
 
-            {status === "done" && outputPreview ? (
-              <div className="p-6 flex-1 flex flex-col justify-between">
-                <div className="text-xs font-mono whitespace-pre-wrap leading-relaxed flex-1 prose max-w-none" style={{ color: T.textPrimary }}>
-                  {outputPreview}
+            <div className="flex-1 p-5 overflow-y-auto">
+              {status === "done" && outputPreview ? (
+                <div className="space-y-4">
+                  {/* Success indicator animation */}
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
+                    <Check className="h-4 w-4" />
+                    <span>File transformed and structured successfully! Latency: {(processingTime / 1000).toFixed(2)}s</span>
+                  </div>
+
+                  <pre className="p-4 bg-slate-950/80 rounded-2xl border border-white/5 text-[11px] font-mono text-slate-200 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
+                    {outputPreview}
+                  </pre>
                 </div>
-                <div className="border-t pt-4 mt-6 flex justify-between items-center text-[10px]" style={{ borderColor: T.border, color: T.textSecondary }}>
-                  <span>Output generated successfully via ACT engine ({selectedModel})</span>
-                  <span>Timestamp: {new Date().toLocaleTimeString()}</span>
+              ) : (
+                <div className="h-full flex flex-col justify-center items-center text-center py-20 text-slate-500">
+                  <Cpu className="h-10 w-10 text-slate-600 mb-3" />
+                  <p className="text-xs font-bold text-slate-400">Processing Engine Standby</p>
+                  <p className="text-[10px] max-w-xs mt-1 text-slate-500">Configure parameters and upload documents. ACT will extract and transform contents dynamically.</p>
                 </div>
-              </div>
-            ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-                <BookOpen className="h-10 w-10 text-slate-400 mb-4 animate-pulse" />
-                <p className="text-sm font-semibold" style={{ color: T.textPrimary }}>Transform Console Empty</p>
-                <p className="text-xs max-w-sm mt-1" style={{ color: T.textSecondary }}>
-                  Upload a document or paste raw text on the left configuration panel, then trigger ACT to output compilations.
-                </p>
+              )}
+            </div>
+
+            {status === "done" && (
+              <div className="p-4 bg-slate-950/20 border-t text-[10px] text-slate-500 flex justify-between" style={{ borderColor: T.border }}>
+                <span>Tokens Consumed: {tokenUsage.toLocaleString()}</span>
+                <span>Workspace Saved: {selectedProjectId !== "none" ? "Yes" : "No"}</span>
               </div>
             )}
           </GlassCard>
         </div>
+
       </div>
+
     </div>
   );
 }

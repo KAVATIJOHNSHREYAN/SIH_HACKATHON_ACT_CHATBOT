@@ -7,7 +7,7 @@ import {
   LayoutDashboard, RefreshCw, MessageSquare, FolderOpen, 
   FolderGit2, FileCode, History, BarChart3, Settings, User, 
   HelpCircle, Menu, X, Search, Bell, ChevronDown, LogOut, 
-  Cpu, Crown, Sun, Moon
+  Cpu, Crown, Sun, Moon, Image, Music, Video, Layers, FileText
 } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { useTheme, LIGHT, DARK } from "@/contexts/ThemeContext";
@@ -24,6 +24,18 @@ const NAVIGATION = [
   { name: "Settings",     href: "/settings",    icon: Settings },
   { name: "Profile",      href: "/profile",     icon: User },
   { name: "Knowledge Center",  href: "/help",        icon: HelpCircle },
+];
+
+const CONVERTER_NAVIGATION = [
+  { name: "Convert Files",      href: "/transform",                        icon: RefreshCw },
+  { name: "Merge PDF",          href: "/transform/pdf?action=merge",       icon: Layers },
+  { name: "Split PDF",          href: "/transform/pdf?action=split",       icon: FileCode },
+  { name: "Compress PDF",       href: "/transform/pdf?action=compress",    icon: Cpu },
+  { name: "OCR",                href: "/transform/ocr",                    icon: Search },
+  { name: "Image Converter",    href: "/transform/images",                 icon: Image },
+  { name: "Audio Converter",    href: "/transform/audio",                  icon: Music },
+  { name: "Video Converter",    href: "/transform/video",                  icon: Video },
+  { name: "Office Converter",   href: "/transform/documents",              icon: FileText }
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -179,6 +191,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 }}
               >
                 <item.icon className="h-4.5 w-4.5 shrink-0" style={{ color: isActive ? T.textActive : T.primaryMuted }} />
+                {item.name}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="px-5 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">File Converter</p>
+        </div>
+        <nav className="px-3 space-y-0.5 overflow-y-auto" style={{ maxHeight: "280px" }}>
+          {CONVERTER_NAVIGATION.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                data-active={isActive}
+                className="flex items-center gap-3 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
+                style={isActive
+                  ? { backgroundColor: T.bgActive, color: T.textActive, fontWeight: 600 }
+                  : { color: T.textSecondary }
+                }
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = T.bgHover;
+                    (e.currentTarget as HTMLElement).style.color = T.textActive;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+                    (e.currentTarget as HTMLElement).style.color = T.textSecondary;
+                  }
+                }}
+              >
+                <item.icon className="h-3.5 w-3.5 shrink-0" style={{ color: isActive ? T.textActive : T.primaryMuted }} />
                 {item.name}
               </Link>
             );
