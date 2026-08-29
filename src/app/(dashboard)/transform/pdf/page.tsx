@@ -519,7 +519,9 @@ export default function PdfTransformPage() {
               cohereKey: savedCohereKey || null,
             };
 
-            const ocrData = await ApiClient.postTransform(ocrPayload);
+            const ocrData = await ApiClient.streamTransform(ocrPayload, (chunk) => {
+              if (chunk.stage) setStage("Page " + i + " OCR: " + chunk.stage);
+            });
             pageText = ocrData.output || "";
           }
         }
@@ -573,7 +575,10 @@ export default function PdfTransformPage() {
         cohereKey: savedCohereKey || null,
       };
 
-      const data = await ApiClient.postTransform(transformPayload);
+      const data = await ApiClient.streamTransform(transformPayload, (chunk) => {
+        if (chunk.stage) setStage(chunk.stage);
+        if (chunk.progress) setProgress(80 + Math.floor(chunk.progress * 0.2));
+      });
 
       setStatus("done");
       setProgress(100);

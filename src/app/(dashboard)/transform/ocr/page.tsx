@@ -10,6 +10,9 @@ import {
 import Link from "next/link";
 import { useTheme, LIGHT, DARK } from "@/contexts/ThemeContext";
 import { ApiClient } from "@/lib/apiClient";
+import { OutputPanel } from "@/components/OutputPanel";
+import { presetOptions, presetPrompts } from "@/lib/presets";
+import { uploadFileMultipart } from "@/lib/uploadUtils";
 
 export default function OcrTransformPage() {
   const { isDark } = useTheme();
@@ -33,6 +36,7 @@ export default function OcrTransformPage() {
   const [status, setStatus] = useState<"idle" | "processing" | "done" | "error">("idle");
   const [stage, setStage] = useState("");
   const [progress, setProgress] = useState(0);
+  const [preset, setPreset] = useState("txt");
   const [errorMsg, setErrorMsg] = useState("");
   const [ocrOutput, setOcrOutput] = useState("");
 
@@ -205,26 +209,9 @@ export default function OcrTransformPage() {
       return;
     }
 
-    const reader = new FileReader();
-
-    if (
-      file.type === "text/plain" ||
-      file.type === "text/markdown" ||
-      file.name.endsWith(".txt") ||
-      file.name.endsWith(".md")
-    ) {
-      reader.onload = (event) => {
-        setFileTextContent(event.target?.result as string || "");
-        setFileBase64("");
-      };
-      reader.readAsText(file);
-    } else {
-      // PDF, Images, DOCX, etc.
-      reader.onload = (event) => {
-        setFileBase64(event.target?.result as string || "");
-        setFileTextContent("");
-      };
-      reader.readAsDataURL(file);
+    // Preview image safely
+    if (file.type.startsWith("image/")) {
+      setFileBase64(URL.createObjectURL(file));
     }
   };
 
@@ -274,13 +261,19 @@ export default function OcrTransformPage() {
         }
       }
 
+      let fileUrlForApi = undefined;
+
+      if (mode === "upload" && selectedFile) {
+        fileUrlForApi = await uploadFileMultipart(selectedFile, (pct) => setProgress(Math.floor(pct * 0.5)));
+      }
+
       const payload = mode === "upload"
         ? {
-            fileData: fileBase64 || undefined,
+            fileUrl: fileUrlForApi,
             text: fileTextContent || undefined,
             fileName: selectedFile?.name,
             fileType: selectedFile?.type,
-            format: customFormat,
+            format: customFormat === "OCR Text" ? (presetPrompts[preset] || customFormat) : customFormat,
             model: selectedModel,
             apiKey: savedApiKey || null,
             openaiKey: savedOpenaiKey || null,
@@ -290,14 +283,17 @@ export default function OcrTransformPage() {
             fileData: capturedImage || undefined,
             fileName: "Camera_Capture.jpeg",
             fileType: "image/jpeg",
-            format: customFormat,
+            format: customFormat === "OCR Text" ? (presetPrompts[preset] || customFormat) : customFormat,
             model: selectedModel,
             apiKey: savedApiKey || null,
             openaiKey: savedOpenaiKey || null,
             cohereKey: savedCohereKey || null,
           };
 
-      const data = await ApiClient.postTransform(payload);
+      const data = await ApiClient.streamTransform(payload, (chunk) => {
+        if (chunk.stage) setStage(chunk.stage);
+        if (chunk.progress) setProgress(Math.max(progress, chunk.progress));
+      });
 
       setStatus("done");
       setProgress(100);
@@ -480,6 +476,22 @@ export default function OcrTransformPage() {
                 )}
               </div>
             )}
+            
+            <div className="space-y-2.5">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide" style={{ color: T.textSecondary }}>Conversion Preset</label>
+              <select
+                value={preset}
+                onChange={(e) => setPreset(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl text-xs focus:outline-none focus:border-purple-500 cursor-pointer shadow-sm font-semibold"
+                style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
+              >
+                {presetOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id} style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             {/* Model Select */}
             <div className="space-y-2.5">
@@ -518,53 +530,7 @@ export default function OcrTransformPage() {
 
         {/* Output Panel */}
         <div className="md:col-span-6">
-          <GlassCard className="h-[520px] flex flex-col justify-between border-slate-200 bg-white shadow-sm" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
-            <div className="space-y-4 flex-1 flex flex-col min-h-0">
-              
-              <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: T.border }}>
-                <span className="text-xs font-bold text-slate-800" style={{ color: T.textPrimary }}>Extracted Text Result</span>
-                <span className="text-[10px]" style={{ color: T.textSecondary }}>Format: Plain Text</span>
-              </div>
-
-              <div 
-                className="flex-1 overflow-y-auto p-4 rounded-xl border font-mono text-[11px] leading-relaxed whitespace-pre-wrap"
-                style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
-              >
-                {ocrOutput ? (
-                  ocrOutput
-                ) : (
-                  <span className="text-slate-400 italic">No text extracted yet. Load a source PDF or image, snap a photo, and click trigger.</span>
-                )}
-              </div>
-
-            </div>
-
-            {ocrOutput && (
-              <div className="pt-4 border-t flex gap-2" style={{ borderColor: T.border }}>
-                <Button 
-                  onClick={() => { navigator.clipboard.writeText(ocrOutput); alert("Copied to clipboard!"); }}
-                  className="flex-1 text-xs bg-slate-700 hover:bg-slate-800"
-                >
-                  <Clipboard className="h-3.5 w-3.5 mr-1.5" />
-                  Copy Text
-                </Button>
-                <Button 
-                  onClick={() => {
-                    const blob = new Blob([ocrOutput], { type: "text/plain" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `OCR_Extracted_Output.txt`;
-                    a.click();
-                  }} 
-                  className="flex-1 text-xs"
-                >
-                  <Download className="h-3.5 w-3.5 mr-1.5" />
-                  Download (.txt)
-                </Button>
-              </div>
-            )}
-          </GlassCard>
+          <OutputPanel output={ocrOutput} setOutput={setOcrOutput} T={T} className="h-[520px]" />
         </div>
 
       </div>

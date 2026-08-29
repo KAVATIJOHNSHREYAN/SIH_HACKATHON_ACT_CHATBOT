@@ -12,6 +12,7 @@
     "@emailjs/browser": "^4.4.1",
     "@google/generative-ai": "^0.24.1",
     "docx": "^9.7.1",
+    "eventsource-parser": "^4.1.0",
     "framer-motion": "^13.1.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",

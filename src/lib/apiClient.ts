@@ -22,6 +22,8 @@ interface TransformPayload {
 
 export class ApiClient {
   private static activeControllers = new Map<string, AbortController>();
+  private static requestCache = new Map<string, any>();
+  private static queue: Promise<any> = Promise.resolve();
 
   /**
    * Helper to normalize raw backend/network errors into human-friendly messages.
@@ -105,5 +107,110 @@ export class ApiClient {
 
   public static async postTransform(payload: TransformPayload): Promise<any> {
     return this.request("/api/transform", payload, "transform");
+  }
+
+  /**
+   * Stream API request helper to process Server-Sent Events (SSE) or chunked JSON.
+   */
+  public static async streamTransform(
+    payload: TransformPayload,
+    onProgress: (data: any) => void
+  ): Promise<any> {
+    const key = "transform_stream";
+    const payloadHash = JSON.stringify(payload);
+
+    // 6. Cache identical requests to avoid unnecessary API calls
+    if (this.requestCache.has(payloadHash)) {
+      onProgress({ type: "progress", stage: "Restoring from cache...", progress: 100 });
+      return this.requestCache.get(payloadHash);
+    }
+
+    // 7. Cancel stale or duplicate requests using AbortController
+    if (this.activeControllers.has(key)) {
+      this.activeControllers.get(key)?.abort();
+    }
+    
+    const controller = new AbortController();
+    this.activeControllers.set(key, controller);
+
+    // 5. Queue AI requests so they execute sequentially
+    return new Promise((resolve, reject) => {
+      this.queue = this.queue.then(async () => {
+        if (controller.signal.aborted) {
+          return reject(new Error("Request was aborted or timed out."));
+        }
+
+        try {
+          const res = await fetch("/api/transform", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: payloadHash,
+            signal: controller.signal
+          });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Failed to transform content.");
+      }
+
+      if (!res.body) {
+        throw new Error("ReadableStream not supported in this browser.");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalOutput = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        
+        // Split by newlines (assuming newline-delimited JSON chunks)
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || ""; // Keep the last incomplete chunk in the buffer
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          
+          try {
+            const data = JSON.parse(line);
+            
+            if (data.type === "progress") {
+              onProgress(data);
+            } else if (data.type === "success") {
+              finalOutput = data;
+            } else if (data.type === "error") {
+              throw new Error(data.error);
+            }
+          } catch (e: any) {
+            if (e.name !== "SyntaxError") throw e;
+          }
+        }
+      }
+
+      this.activeControllers.delete(key);
+      
+      if (!finalOutput) {
+        throw new Error("Stream closed without final success payload.");
+      }
+      
+      // Save to cache
+      this.requestCache.set(payloadHash, finalOutput);
+      
+      resolve(finalOutput);
+
+    } catch (err: any) {
+      this.activeControllers.delete(key);
+      if (err.name === "AbortError") {
+        reject(new Error("Request was aborted or timed out."));
+      } else {
+        reject(new Error(this.parseError(err)));
+      }
+    }
+      }).catch(() => {}); // Catch queue errors internally to prevent unhandled rejections
+    });
   }
 }

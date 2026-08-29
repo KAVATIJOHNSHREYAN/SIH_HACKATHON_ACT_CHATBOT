@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
 import { 
-  RefreshCw, ArrowLeft, Cpu, Type, AlertCircle 
+  RefreshCw, ArrowLeft, Cpu, Globe, AlertCircle 
 } from "lucide-react";
 import Link from "next/link";
 import { useTheme, LIGHT, DARK } from "@/contexts/ThemeContext";
@@ -12,11 +12,11 @@ import { ApiClient } from "@/lib/apiClient";
 import { OutputPanel } from "@/components/OutputPanel";
 import { presetOptions, presetPrompts } from "@/lib/presets";
 
-export default function TextTransformPage() {
+export default function UrlTransformPage() {
   const { isDark } = useTheme();
   const T = isDark ? DARK : LIGHT;
 
-  const [rawText, setRawText] = useState("");
+  const [urlInput, setUrlInput] = useState("");
   
   const [status, setStatus] = useState<"idle" | "processing" | "done" | "error">("idle");
   const [stage, setStage] = useState("");
@@ -26,15 +26,15 @@ export default function TextTransformPage() {
   const [errorMsg, setErrorMsg] = useState("");
   
   const triggerTransform = async () => {
-    if (!rawText.trim()) {
-      alert("Please paste or type some text first.");
+    if (!urlInput.trim() || !urlInput.startsWith("http")) {
+      alert("Please enter a valid URL starting with http:// or https://");
       return;
     }
 
     setStatus("processing");
     setOutput("");
     setErrorMsg("");
-    setStage("Analyzing text content...");
+    setStage("Crawling URL content...");
     setProgress(30);
 
     try {
@@ -45,7 +45,7 @@ export default function TextTransformPage() {
       const targetFormat = presetPrompts[preset] || preset;
 
       const payload = {
-        text: rawText,
+        text: urlInput, // The backend handles URLs as text input to the URL scraper
         format: targetFormat,
         model: "Gemini Pro",
         apiKey: savedApiKey || null,
@@ -71,7 +71,7 @@ export default function TextTransformPage() {
         const history = JSON.parse(historyStr);
         const newJob = {
           id: Date.now(),
-          file: "Raw Text Source",
+          file: urlInput.length > 50 ? urlInput.substring(0, 50) + "..." : urlInput,
           action: preset,
           date: new Date().toISOString().split("T")[0],
           tokens: Math.floor((data.output?.length || 0) / 4) + 120,
@@ -83,7 +83,7 @@ export default function TextTransformPage() {
     } catch (err: any) {
       console.error(err);
       setStatus("error");
-      setErrorMsg(err.message || "Failed to process the text.");
+      setErrorMsg(err.message || "Failed to process the URL.");
     }
   };
 
@@ -95,11 +95,11 @@ export default function TextTransformPage() {
         </Link>
         <div>
           <h1 className="text-xl font-bold tracking-tight flex items-center gap-2" style={{ color: T.textPrimary }}>
-            <Type className="h-6 w-6 text-purple-600" />
-            Raw Text Transformation
+            <Globe className="h-6 w-6 text-purple-600" />
+            URL Crawl Transformation
           </h1>
           <p className="text-[11px] mt-1" style={{ color: T.textSecondary }}>
-            Paste any raw text or transcript to instantly reformat, summarize, and extract insights.
+            Paste any webpage URL to extract, summarize, and transform its content automatically.
           </p>
         </div>
       </div>
@@ -114,8 +114,8 @@ export default function TextTransformPage() {
                 <Cpu className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: T.textPrimary }}>Text Engine</h3>
-                <p className="text-[10px]" style={{ color: T.textSecondary }}>Semantic analysis & extraction</p>
+                <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: T.textPrimary }}>Web Engine</h3>
+                <p className="text-[10px]" style={{ color: T.textSecondary }}>Scraping & semantic analysis</p>
               </div>
             </div>
 
@@ -127,11 +127,12 @@ export default function TextTransformPage() {
             )}
 
             <div>
-              <textarea
-                value={rawText}
-                onChange={(e) => setRawText(e.target.value)}
-                placeholder="Paste your raw text here..."
-                className="w-full h-40 p-4 rounded-xl border text-[11px] focus:outline-none focus:border-purple-500 resize-none font-mono"
+              <input
+                type="url"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                placeholder="https://example.com/article"
+                className="w-full p-4 rounded-xl border text-[11px] focus:outline-none focus:border-purple-500 font-mono"
                 style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
               />
             </div>
@@ -164,7 +165,7 @@ export default function TextTransformPage() {
               </div>
             ) : (
               <Button onClick={triggerTransform} className="w-full text-xs py-3 bg-purple-650 hover:bg-purple-750">
-                Transform Text
+                Transform URL Content
                 <RefreshCw className="ml-2 h-4 w-4" />
               </Button>
             )}

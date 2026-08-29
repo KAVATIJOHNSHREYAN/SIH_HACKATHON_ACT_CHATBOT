@@ -306,7 +306,10 @@ export default function TransformPage() {
           };
 
       const startTime = Date.now();
-      const data = await ApiClient.postTransform(payload);
+      const data = await ApiClient.streamTransform(payload, (chunk) => {
+        if (chunk.stage) setStage(chunk.stage);
+        if (chunk.progress) setProgress(Math.max(progress, chunk.progress));
+      });
       const latency = `${((Date.now() - startTime) / 1000).toFixed(1)}s`;
 
       setStatus("done");

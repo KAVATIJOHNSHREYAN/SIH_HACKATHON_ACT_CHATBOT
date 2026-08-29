@@ -10,11 +10,9 @@ import {
 import Link from "next/link";
 import { useTheme, LIGHT, DARK } from "@/contexts/ThemeContext";
 import { ApiClient } from "@/lib/apiClient";
-import jsPDF from "jspdf";
-import { Document as DocxDocument, Packer, Paragraph, TextRun } from "docx";
-import pptxgen from "pptxgenjs";
-import JSZip from "jszip";
-import * as XLSX from "xlsx";
+import { OutputPanel } from "@/components/OutputPanel";
+import { presetOptions, presetPrompts } from "@/lib/presets";
+import { uploadFileMultipart } from "@/lib/uploadUtils";
 
 // --- SUB-COMPONENTS ---
 
@@ -390,168 +388,7 @@ function ProcessingStats({ stats, T }: ProcessingStatsProps) {
   );
 }
 
-// 7. OUTPUT DISPLAY PANEL
-interface OutputPanelProps {
-  output: string;
-  setOutput: (val: string) => void;
-  T: any;
-}
-function OutputPanel({ output, setOutput, T }: OutputPanelProps) {
-  const [copied, setCopied] = useState(false);
-  const [downloadFormat, setDownloadFormat] = useState("txt");
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(output);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleDownload = async () => {
-    if (!output) return;
-    
-    try {
-      const fileName = `ACT_Video_Export_${Date.now()}`;
-      
-      if (downloadFormat === "txt" || downloadFormat === "md" || downloadFormat === "json" || downloadFormat === "csv" || downloadFormat === "xml" || downloadFormat === "yaml") {
-        let mime = "text/plain";
-        if (downloadFormat === "md") mime = "text/markdown";
-        if (downloadFormat === "json") mime = "application/json";
-        if (downloadFormat === "csv") mime = "text/csv";
-        if (downloadFormat === "xml") mime = "application/xml";
-        
-        const blob = new Blob([output], { type: mime });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${fileName}.${downloadFormat}`;
-        a.click();
-      } 
-      else if (downloadFormat === "html") {
-        const htmlContent = `
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>ACT Video Export</title>
-              <style>
-                body { font-family: system-ui, sans-serif; padding: 40px; color: #111; line-height: 1.6; max-width: 800px; margin: 0 auto; }
-                pre { white-space: pre-wrap; font-family: monospace; font-size: 13px; background: #f4f4f5; padding: 20px; border-radius: 8px; border: 1px solid #e4e4e7; }
-              </style>
-            </head>
-            <body>
-              <h2>ACT Video Export</h2>
-              <pre>${output}</pre>
-            </body>
-          </html>
-        `;
-        const blob = new Blob([htmlContent], { type: "text/html" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${fileName}.html`;
-        a.click();
-      }
-      else if (downloadFormat === "pdf") {
-        const doc = new jsPDF();
-        doc.setFontSize(12);
-        const lines = doc.splitTextToSize(output, 180);
-        let cursorY = 10;
-        lines.forEach((line: string) => {
-          if (cursorY > 280) {
-            doc.addPage();
-            cursorY = 10;
-          }
-          doc.text(line, 10, cursorY);
-          cursorY += 7;
-        });
-        doc.save(`${fileName}.pdf`);
-      }
-      else if (downloadFormat === "docx") {
-        const paragraphs = output.split("\\n").map(line => new Paragraph({ children: [new TextRun(line)] }));
-        const doc = new DocxDocument({ sections: [{ properties: {}, children: paragraphs }] });
-        const blob = await Packer.toBlob(doc);
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${fileName}.docx`;
-        a.click();
-      }
-      else if (downloadFormat === "pptx") {
-        const pres = new pptxgen();
-        const slide = pres.addSlide();
-        slide.addText(output.substring(0, 1000) + (output.length > 1000 ? "..." : ""), { x: 0.5, y: 0.5, w: "90%", h: "90%", align: "left", valign: "top", fontSize: 12 });
-        pres.writeFile({ fileName: `${fileName}.pptx` });
-      }
-      else if (downloadFormat === "zip") {
-        const zip = new JSZip();
-        zip.file("video_package.md", output);
-        zip.file("video_package.txt", output);
-        const content = await zip.generateAsync({ type: "blob" });
-        const url = URL.createObjectURL(content);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${fileName}.zip`;
-        a.click();
-      }
-    } catch (err) {
-      console.error("Export failed:", err);
-      alert("Failed to export file. Try another format.");
-    }
-  };
-
-  return (
-    <GlassCard className="h-[580px] flex flex-col justify-between border-slate-200 bg-white shadow-sm" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
-      <div className="space-y-4 flex-1 flex flex-col min-h-0">
-        <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: T.border }}>
-          <span className="text-xs font-bold" style={{ color: T.textPrimary }}>ACT Converted Output</span>
-          {output && (
-            <button
-              onClick={handleCopy}
-              className="flex items-center gap-1 text-[10px] text-purple-500 hover:text-purple-600 font-semibold"
-            >
-              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-              {copied ? "Copied!" : "Copy Text"}
-            </button>
-          )}
-        </div>
-
-        <textarea
-          value={output}
-          onChange={(e) => setOutput(e.target.value)}
-          placeholder="Video summary or compiled reports will render here. Choose a preset, extract frames/transcripts, and click Compile Video."
-          className="flex-1 overflow-y-auto p-4 rounded-xl border font-mono text-[11px] leading-relaxed resize-none focus:outline-none focus:border-purple-500"
-          style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
-        />
-      </div>
-
-      {output && (
-        <div className="pt-4 border-t flex flex-col sm:flex-row items-center gap-2" style={{ borderColor: T.border }}>
-          <select
-            value={downloadFormat}
-            onChange={(e) => setDownloadFormat(e.target.value)}
-            className="p-2 border rounded-lg text-xs flex-1 focus:outline-none focus:border-purple-500"
-            style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
-          >
-            <option value="txt">TXT Document</option>
-            <option value="md">Markdown (.md)</option>
-            <option value="pdf">PDF Document</option>
-            <option value="docx">Word (.docx)</option>
-            <option value="csv">CSV Spreadsheet</option>
-            <option value="json">JSON Data</option>
-            <option value="html">HTML Page</option>
-            <option value="pptx">PowerPoint (.pptx)</option>
-            <option value="xml">XML Data</option>
-            <option value="yaml">YAML File</option>
-            <option value="zip">ZIP Package</option>
-          </select>
-          <Button onClick={handleDownload} className="text-xs py-2 px-6 rounded-lg bg-purple-650 hover:bg-purple-750 flex-1 sm:flex-none whitespace-nowrap">
-            <Download className="h-3.5 w-3.5 mr-2" />
-            Export Output
-          </Button>
-        </div>
-      )}
-    </GlassCard>
-  );
-}
+// Local OutputPanel removed in favor of shared OutputPanel component.
 
 // --- MAIN PAGE CONTAINER ---
 
@@ -579,57 +416,9 @@ export default function VideoTransformPage() {
   const [output, setOutput] = useState("");
   const [stats, setStats] = useState<any | null>(null);
 
-  const presets = [
-    { id: "exec_summary", label: "Executive Summary" },
-    { id: "detailed_summary", label: "Detailed Summary" },
-    { id: "minutes", label: "Minutes of Meeting" },
-    { id: "actions", label: "Action Items" },
-    { id: "mcqs", label: "MCQs" },
-    { id: "faqs", label: "FAQs" },
-    { id: "linkedin", label: "LinkedIn Post" },
-    { id: "twitter", label: "Twitter/X Thread" },
-    { id: "facebook", label: "Facebook Post" },
-    { id: "instagram", label: "Instagram Caption" },
-    { id: "blog", label: "Professional Blog" },
-    { id: "article", label: "Article" },
-    { id: "press", label: "Press Release" },
-    { id: "advisory", label: "Advisory" },
-    { id: "research", label: "Research Summary" },
-    { id: "presentation", label: "Presentation" },
-    { id: "speaker_notes", label: "Presentation Speaker Notes" },
-    { id: "infographic_content", label: "Infographic Content" },
-    { id: "infographic_layout", label: "Infographic Layout" },
-    { id: "key_messages", label: "Key Messages" },
-    { id: "video_script", label: "Video Script" },
-    { id: "storyboard", label: "Complete Storyboard" },
-    { id: "scene_desc", label: "Scene Descriptions" },
-    { id: "narration", label: "Narration Script" },
-    { id: "voiceover", label: "Voice-over Script" },
-    { id: "subtitles", label: "Subtitles (.srt)" },
-    { id: "captions", label: "Captions (.vtt)" },
-    { id: "shot_list", label: "Shot List" },
-    { id: "visual_recs", label: "Visual Recommendations" },
-    { id: "thumbnails", label: "Thumbnail Suggestions" },
-    { id: "social_package", label: "Social Media Package" },
-    { id: "seo_title", label: "SEO Title" },
-    { id: "seo_desc", label: "SEO Description" },
-    { id: "hashtags", label: "Hashtags" },
-    { id: "keywords", label: "Keywords" },
-    { id: "email", label: "Email Draft" },
-    { id: "newsletter", label: "Newsletter" },
-    { id: "documentation", label: "Documentation" },
-    { id: "markdown", label: "Markdown" },
-    { id: "json", label: "JSON" },
-    { id: "csv", label: "CSV" },
-    { id: "txt", label: "TXT" },
-    { id: "pdf", label: "PDF" },
-    { id: "docx", label: "DOCX" },
-    { id: "pptx", label: "PPTX" },
-    { id: "html", label: "HTML" },
-    { id: "xml", label: "XML" },
-    { id: "yaml", label: "YAML" },
-    { id: "video_package", label: "Video Package (Full)" }
-  ];
+  const presets = presetOptions;
+  
+  // Local presets removed in favor of shared presetOptions and presetPrompts from @/lib/presets
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -648,42 +437,7 @@ export default function VideoTransformPage() {
       }
     }
   }, []);
-  const uploadVideoMultipart = (file: File, onProgress: (pct: number) => void): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", "/api/upload", true);
-      
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          const pct = Math.round((e.loaded / e.total) * 100);
-          onProgress(pct);
-        }
-      };
-
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const res = JSON.parse(xhr.responseText);
-            if (res.success && res.fileUrl) {
-              resolve(res.fileUrl);
-            } else {
-              reject(new Error(res.error || "Upload failed without a file URL."));
-            }
-          } catch (err) {
-            reject(new Error("Failed to parse upload response."));
-          }
-        } else {
-          reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.responseText}`));
-        }
-      };
-
-      xhr.onerror = () => reject(new Error("Network error during upload."));
-      
-      const formData = new FormData();
-      formData.append("file", file);
-      xhr.send(formData);
-    });
-  };
+// Removed local uploadVideoMultipart in favor of shared uploadFileMultipart
 
   const handleUrlLoaded = async (url: string) => {
     setErrorMsg("");
@@ -754,7 +508,7 @@ export default function VideoTransformPage() {
       setStage("Uploading Video to Server...");
       setProgress(5);
 
-      const uploadedFileUrl = await uploadVideoMultipart(selectedVideo, (pct) => {
+      const uploadedFileUrl = await uploadFileMultipart(selectedVideo, (pct) => {
         setProgress(5 + Math.floor(pct * 0.15)); // scale to 20% max for upload phase
       });
       await new Promise((r) => setTimeout(r, 600));
@@ -785,7 +539,10 @@ export default function VideoTransformPage() {
         cohereKey: savedCohereKey || null,
       };
 
-      const transcriptRes = await ApiClient.postTransform(transcriptPayload);
+      const transcriptRes = await ApiClient.streamTransform(transcriptPayload, (chunk) => {
+        if (chunk.stage) setStage("Transcription: " + chunk.stage);
+        if (chunk.progress) setProgress(15 + Math.floor(chunk.progress * 0.2));
+      });
       rawTranscriptText = transcriptRes.output || "No speech dialogue was detected in the video track.";
       setTranscript(rawTranscriptText);
 
@@ -849,7 +606,10 @@ export default function VideoTransformPage() {
             openaiKey: savedOpenaiKey || null,
             cohereKey: savedCohereKey || null,
           };
-          const ocrRes = await ApiClient.postTransform(ocrPayload);
+          const ocrRes = await ApiClient.streamTransform(ocrPayload, (chunk) => {
+            if (chunk.stage) setStage("Frame OCR: " + chunk.stage);
+            if (chunk.progress) setProgress(45 + Math.floor(chunk.progress * 0.2));
+          });
           const detectedText = ocrRes.output || "";
 
           if (detectedText.trim() && !detectedText.includes("Sandbox Mode")) {
@@ -869,58 +629,7 @@ export default function VideoTransformPage() {
 
       const tAfterMedia = performance.now();
 
-      const presetPrompts: Record<string, string> = {
-        "exec_summary": "Executive Summary (Generate a concise high-level professional summary of the video content)",
-        "detailed_summary": "Detailed Summary (Generate an in-depth summary with all major points and timelines)",
-        "minutes": "Meeting Minutes (Convert the dialogues into structured meeting minutes)",
-        "actions": "Action Items (Extract action items, assignees if visible, and deadlines)",
-        "mcqs": "MCQs (Generate Multiple Choice Questions based on the video facts)",
-        "faqs": "FAQs (Generate Frequently Asked Questions with answers)",
-        "linkedin": "LinkedIn Post (Write a professional engaging LinkedIn post summarizing the video)",
-        "twitter": "Twitter/X Thread (Write a multi-part Twitter thread)",
-        "facebook": "Facebook Post (Write a community-focused Facebook post)",
-        "instagram": "Instagram Caption (Write a visual-first Instagram caption with emojis)",
-        "blog": "Professional Blog (Write a comprehensive blog post using the video content)",
-        "article": "Article (Draft a formal article with headings and structured paragraphs)",
-        "press": "Press Release (Write a formal press release announcement)",
-        "advisory": "Advisory (Generate a formal advisory notice or bulletin)",
-        "research": "Research Summary (Generate an academic-style research summary)",
-        "presentation": "Presentation (Structure the content as presentation slides)",
-        "speaker_notes": "Presentation Speaker Notes (Draft notes for a speaker presenting this content)",
-        "infographic_content": "Infographic Content (Extract key stats and facts for an infographic)",
-        "infographic_layout": "Infographic Layout (Suggest a visual layout for the infographic)",
-        "key_messages": "Key Messages (Extract the 3-5 absolute most important takeaways)",
-        "video_script": "Video Script (Reformat the transcript into a polished script)",
-        "storyboard": "Complete Storyboard (Generate a scene-by-scene storyboard with visual descriptions)",
-        "scene_desc": "Scene Descriptions (Describe the physical scenes detected in the video)",
-        "narration": "Narration Script (Draft a clean script for a voiceover narrator)",
-        "voiceover": "Voice-over Script (Draft a voice-over script focusing on timing and pauses)",
-        "subtitles": "Subtitles (.srt) (Generate SRT formatted subtitles with timestamps)",
-        "captions": "Captions (.vtt) (Generate VTT formatted web captions)",
-        "shot_list": "Shot List (Generate a camera shot list based on visual OCR/scenes)",
-        "visual_recs": "Visual Recommendations (Suggest B-roll and visual assets)",
-        "thumbnails": "Thumbnail Suggestions (Suggest 3 YouTube thumbnail ideas with text and imagery)",
-        "social_package": "Social Media Package (Generate a bundled pack of tweets, posts, and captions)",
-        "seo_title": "SEO Title (Generate 5 highly clickable SEO-optimized titles)",
-        "seo_desc": "SEO Description (Generate an SEO meta description)",
-        "hashtags": "Hashtags (Generate a list of 20 relevant hashtags)",
-        "keywords": "Keywords (Extract primary and secondary SEO keywords)",
-        "email": "Email Draft (Draft an email newsletter sharing this video content)",
-        "newsletter": "Newsletter (Write a full email newsletter edition)",
-        "documentation": "Documentation (Generate technical documentation or a user manual)",
-        "markdown": "Markdown (Format text into detailed clean Markdown with headings)",
-        "json": "JSON (Extract all facts and structure them into a valid JSON object)",
-        "csv": "CSV (Extract any tabular data or lists into comma-separated values format)",
-        "txt": "TXT (Clean readable plain text alignment)",
-        "pdf": "PDF Structure (Generate content optimized for a PDF report)",
-        "docx": "DOCX Structure (Generate content optimized for a Word document)",
-        "pptx": "PPTX Structure (Generate content strictly as slides)",
-        "html": "HTML (Generate valid HTML5 semantic markup)",
-        "xml": "XML (Extract facts into a valid XML tree)",
-        "yaml": "YAML (Extract facts into valid YAML format)",
-        "video_package": "Video Package (Generate a massive master document containing: Script, Storyboard, Scene Numbers, Camera Angles, Visual Descriptions, Actions, Background, Lighting, Music, Tone, Subtitles, Transitions, Editing Notes, B-roll, End Screen, CTA, and Image Prompts)"
-      };
-
+      // Local presetPrompts definition removed. It is now imported from @/lib/presets.
       let targetPresetPrompt = presetPrompts[preset] || "Plain Text (Clean readable plain text alignment)";
 
       if (typeof window !== "undefined") {
@@ -953,7 +662,10 @@ ${ocrDetectionsText || "No readable visual text detected on screen."}
         cohereKey: savedCohereKey || null,
       };
 
-      const transformRes = await ApiClient.postTransform(transformPayload);
+      const transformRes = await ApiClient.streamTransform(transformPayload, (chunk) => {
+        if (chunk.stage) setStage(chunk.stage);
+        if (chunk.progress) setProgress(75 + Math.floor(chunk.progress * 0.2));
+      });
 
       const tEnd = performance.now();
       const mediaElapsed = ((tAfterMedia - tStart) / 1000).toFixed(1);

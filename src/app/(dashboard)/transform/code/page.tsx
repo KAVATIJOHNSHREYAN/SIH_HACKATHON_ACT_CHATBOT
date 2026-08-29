@@ -155,7 +155,10 @@ export default function CodeTransformPage() {
         cohereKey: savedCohereKey || null,
       };
 
-      const data = await ApiClient.postTransform(transformPayload);
+      const data = await ApiClient.streamTransform(transformPayload, (chunk) => {
+        if (chunk.stage) setStage(chunk.stage);
+        if (chunk.progress) setProgress(Math.max(progress, chunk.progress));
+      });
 
       const tEnd = performance.now();
       const elapsed = ((tEnd - tStart) / 1000).toFixed(1);

@@ -12,10 +12,7 @@ export class ModelManager {
 
   // Standardizes model strings to prevent 404s
   private static geminiModels = [
-    "gemini-2.5-pro",
-    "gemini-2.5-flash",
-    "gemini-3.5-flash",
-    "gemini-3.7-flash"
+    "gemini-2.5-pro"
   ];
 
   private static async safeParseJson(res: Response): Promise<any> {
@@ -37,18 +34,29 @@ export class ModelManager {
   /**
    * Helper to execute async functions with exponential backoff for 429 & 503 errors.
    */
-  private static async executeWithRetry<T>(fn: () => Promise<T>): Promise<T> {
+  private static async executeWithRetry<T>(fn: () => Promise<T>, endpointLabel: string = "AI Model"): Promise<T> {
     let attempts = 0;
+    const startTime = Date.now();
+    
     while (attempts < this.MAX_RETRIES) {
       try {
-        return await fn();
+        const result = await fn();
+        return result;
       } catch (err: any) {
         attempts++;
+        const executionTime = Date.now() - startTime;
         const status = err.status || (err.message && err.message.includes("429") ? 429 : err.message && err.message.includes("503") ? 503 : null);
         
+        console.error(`[ACT_LOG] API Request Failed:
+  Endpoint: ${endpointLabel}
+  Error: ${err.message}
+  Status Code: ${status || "Unknown"}
+  Execution Time: ${executionTime}ms
+  Attempt: ${attempts}/${this.MAX_RETRIES}`);
+
         if ((status === 429 || status === 503) && attempts < this.MAX_RETRIES) {
           const delay = this.INITIAL_BACKOFF * Math.pow(2, attempts - 1);
-          console.warn(`[ModelManager] Retrying after error (${status}). Attempt ${attempts}/${this.MAX_RETRIES}. Waiting ${delay}ms...`);
+          console.warn(`[ModelManager] Retrying after error (${status}). Waiting ${delay}ms...`);
           await new Promise((resolve) => setTimeout(resolve, delay));
         } else {
           throw err;
@@ -70,9 +78,6 @@ export class ModelManager {
     
     // Resolve frontend selection to stable model identifier
     let primaryModel = "gemini-2.5-pro";
-    if (selectedModel === "Gemini Flash" || selectedModel === "gemini-2.5-flash") {
-      primaryModel = "gemini-2.5-flash";
-    }
 
     return { genAI, primaryModel };
   }
@@ -118,7 +123,7 @@ export class ModelManager {
           return { text: data.text, modelUsed: "Command A+ (Cohere)" };
         }
         throw new Error(data.message || "Cohere chat generation failed.");
-      });
+      }, "Cohere Command A+");
     }
 
     const useOpenAI = selectedModel === "GPT-4o";
@@ -174,7 +179,7 @@ export class ModelManager {
           return { text: data.choices[0].message.content, modelUsed: "GPT-4o (OpenAI)" };
         }
         throw new Error(data.error?.message || "OpenAI generation failed.");
-      });
+      }, "OpenAI GPT-4o-mini");
     }
 
     // Gemini Path
@@ -185,6 +190,35 @@ export class ModelManager {
     const modelsToTry = [primaryModel, ...this.geminiModels.filter(m => m !== primaryModel)];
     let lastError: any = null;
 
+    let resolvedFilePartPayload: any = null;
+    if (filePart) {
+      if (filePart.fileUrl) {
+        try {
+          const fileManager = new GoogleAIFileManager(activeKey);
+          const uploadResponse = await fileManager.uploadFile(filePart.fileUrl, {
+            mimeType: filePart.mimeType,
+            displayName: `ACT_Upload_${Date.now()}`
+          });
+          resolvedFilePartPayload = {
+            fileData: {
+              fileUri: uploadResponse.file.uri,
+              mimeType: uploadResponse.file.mimeType
+            }
+          };
+        } catch (uploadErr) {
+          console.error("Gemini File API Upload Error:", uploadErr);
+          throw uploadErr;
+        }
+      } else if (filePart.data) {
+        resolvedFilePartPayload = {
+          inlineData: {
+            data: filePart.data,
+            mimeType: filePart.mimeType
+          }
+        };
+      }
+    }
+
     for (const modelName of modelsToTry) {
       try {
         const result = await this.executeWithRetry(async () => {
@@ -193,37 +227,14 @@ export class ModelManager {
             systemInstruction: systemPrompt
           });
 
-          if (filePart) {
-            let filePartPayload: any;
-            
-            if (filePart.fileUrl) {
-              const fileManager = new GoogleAIFileManager(activeKey);
-              const uploadResponse = await fileManager.uploadFile(filePart.fileUrl, {
-                mimeType: filePart.mimeType,
-                displayName: `ACT_Upload_${Date.now()}`
-              });
-              
-              filePartPayload = {
-                fileData: {
-                  fileUri: uploadResponse.file.uri,
-                  mimeType: uploadResponse.file.mimeType
-                }
-              };
-            } else if (filePart.data) {
-              filePartPayload = {
-                inlineData: {
-                  data: filePart.data,
-                  mimeType: filePart.mimeType
-                }
-              };
-            }
-            const res = await aiModel.generateContent([prompt, filePartPayload]);
+          if (resolvedFilePartPayload) {
+            const res = await aiModel.generateContent([prompt, resolvedFilePartPayload]);
             return res.response.text();
           } else {
             const res = await aiModel.generateContent(prompt);
             return res.response.text();
           }
-        });
+        }, `Gemini (${modelName})`);
         if (result) {
           return { text: result, modelUsed: modelName };
         }

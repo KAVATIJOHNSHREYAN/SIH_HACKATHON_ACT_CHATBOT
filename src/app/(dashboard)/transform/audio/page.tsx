@@ -10,6 +10,9 @@ import {
 import Link from "next/link";
 import { useTheme, LIGHT, DARK } from "@/contexts/ThemeContext";
 import { ApiClient } from "@/lib/apiClient";
+import { OutputPanel } from "@/components/OutputPanel";
+import { presetOptions, presetPrompts } from "@/lib/presets";
+import { uploadFileMultipart } from "@/lib/uploadUtils";
 
 // Speech Recognition Type definition for TypeScript
 type SpeechRecognitionEvent = {
@@ -59,7 +62,9 @@ export default function AudioTransformPage() {
   const [interimTranscript, setInterimTranscript] = useState("");
   
   const [status, setStatus] = useState<"idle" | "transcribing" | "processing" | "done">("idle");
-  const [preset, setPreset] = useState<"minutes" | "actions" | "summary">("minutes");
+  const [stage, setStage] = useState("");
+  const [progress, setProgress] = useState(0);
+  const [preset, setPreset] = useState("txt");
   const [output, setOutput] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -232,20 +237,14 @@ export default function AudioTransformPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      processAudioFile(file);
+      if (file.size > 150 * 1024 * 1024) {
+        alert("File exceeds 150MB size limit.");
+        return;
+      }
+      setSelectedFile(file);
+      setAudioUrl(URL.createObjectURL(file));
+      setTranscript("");
     }
-  };
-
-  const processAudioFile = (file: File) => {
-    setSelectedFile(file);
-    setAudioUrl(URL.createObjectURL(file));
-    setOutput("");
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setFileBase64(event.target?.result as string || "");
-    };
-    reader.readAsDataURL(file);
   };
 
   const removeUploadedFile = (e: React.MouseEvent) => {
@@ -296,11 +295,13 @@ export default function AudioTransformPage() {
       const savedCohereKey = typeof window !== "undefined" ? localStorage.getItem("cohere_api_key") : "";
 
       // Stage 1: Transcribe the uploaded file if we don't have a transcript yet
-      if (mode === "upload" && !currentTranscript && fileBase64) {
+      if (mode === "upload" && !currentTranscript && selectedFile) {
         setTranscript("Transcribing audio file... Please wait.");
         
+        const uploadedFileUrl = await uploadFileMultipart(selectedFile, (pct) => {});
+
         const extractPayload = {
-          fileData: fileBase64,
+          fileUrl: uploadedFileUrl,
           fileName: selectedFile?.name || "audio_file",
           fileType: selectedFile?.type || "audio/wav",
           format: "OCR Text",
@@ -310,7 +311,10 @@ export default function AudioTransformPage() {
           cohereKey: savedCohereKey || null,
         };
 
-        const extractData = await ApiClient.postTransform(extractPayload);
+        const extractData = await ApiClient.streamTransform(extractPayload, (chunk) => {
+          if (chunk.stage) setStage("Extraction: " + chunk.stage);
+          if (chunk.progress) setProgress(15 + Math.floor(chunk.progress * 0.4));
+        });
         currentTranscript = extractData.output || "";
         setTranscript(currentTranscript);
 
@@ -320,14 +324,7 @@ export default function AudioTransformPage() {
       }
 
       // Stage 2: Transform transcript using targeted prompts
-      let targetFormat = "";
-      if (preset === "minutes") {
-        targetFormat = "Minutes (Convert the following transcript into structured meeting minutes)";
-      } else if (preset === "actions") {
-        targetFormat = "Actions (Extract only action items, owners if available, and deadlines)";
-      } else {
-        targetFormat = "Summary (Generate a concise professional summary)";
-      }
+      let targetFormat = presetPrompts[preset] || preset;
 
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
@@ -346,7 +343,10 @@ export default function AudioTransformPage() {
         cohereKey: savedCohereKey || null,
       };
 
-      const data = await ApiClient.postTransform(transformPayload);
+      const data = await ApiClient.streamTransform(transformPayload, (chunk) => {
+        if (chunk.stage) setStage(chunk.stage);
+        if (chunk.progress) setProgress(60 + Math.floor(chunk.progress * 0.35));
+      });
 
       setStatus("done");
       setOutput(data.output || "No output generated.");
@@ -449,7 +449,7 @@ export default function AudioTransformPage() {
                   onDrop={e => {
                     e.preventDefault();
                     const file = e.dataTransfer.files?.[0];
-                    if (file) processAudioFile(file);
+                    if (file) handleFileChange({ target: { files: [file] } } as any);
                   }}
                   className="p-10 border-2 border-dashed rounded-xl text-center cursor-pointer transition-all hover:border-purple-500/50"
                   style={{ backgroundColor: T.bgInput, borderColor: T.border }}
@@ -459,7 +459,7 @@ export default function AudioTransformPage() {
                     {selectedFile ? selectedFile.name : "Drag & drop audio files here or click to load"}
                   </span>
                   <span className="text-[10px] text-slate-400 mt-1 block" style={{ color: T.textSecondary }}>
-                    Supports WAV, MP3, M4A, WEBM (Max 50MB)
+                    Supports WAV, MP3, M4A, WEBM (Max 150MB)
                   </span>
                 </div>
 
@@ -514,7 +514,7 @@ export default function AudioTransformPage() {
                         Start Record
                       </Button>
                     ) : (
-                      <Button onClick={stopRecording} className="text-xs px-4 bg-red-655 hover:bg-red-700">
+                      <Button onClick={stopRecording} className="text-xs px-4 bg-red-600 hover:bg-red-700">
                         <Square className="h-3.5 w-3.5 mr-1.5" />
                         Stop Record
                       </Button>
@@ -552,56 +552,26 @@ export default function AudioTransformPage() {
 
             {/* Transform Target presets */}
             <div className="space-y-2.5">
-              <label className="text-[10px] font-bold" style={{ color: T.textSecondary }}>Select conversion template</label>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={() => setPreset("minutes")}
-                  className="p-2.5 rounded-xl border text-center space-y-1 transition-all text-xs font-semibold"
-                  style={{
-                    backgroundColor: preset === "minutes" ? T.bgActive : T.bgInput,
-                    borderColor: preset === "minutes" ? T.primaryBright : T.border,
-                    color: preset === "minutes" ? T.textActive : T.textSecondary
-                  }}
-                >
-                  <FileText className="h-4 w-4 mx-auto" />
-                  <span>Minutes</span>
-                </button>
-                <button
-                  onClick={() => setPreset("actions")}
-                  className="p-2.5 rounded-xl border text-center space-y-1 transition-all text-xs font-semibold"
-                  style={{
-                    backgroundColor: preset === "actions" ? T.bgActive : T.bgInput,
-                    borderColor: preset === "actions" ? T.primaryBright : T.border,
-                    color: preset === "actions" ? T.textActive : T.textSecondary
-                  }}
-                >
-                  <CheckSquare className="h-4 w-4 mx-auto" />
-                  <span>Actions</span>
-                </button>
-                <button
-                  onClick={() => setPreset("summary")}
-                  className="p-2.5 rounded-xl border text-center space-y-1 transition-all text-xs font-semibold"
-                  style={{
-                    backgroundColor: preset === "summary" ? T.bgActive : T.bgInput,
-                    borderColor: preset === "summary" ? T.primaryBright : T.border,
-                    color: preset === "summary" ? T.textActive : T.textSecondary
-                  }}
-                >
-                  <ListPlus className="h-4 w-4 mx-auto" />
-                  <span>Summary</span>
-                </button>
-              </div>
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide" style={{ color: T.textSecondary }}>Conversion Preset</label>
+              <select
+                value={preset}
+                onChange={(e) => setPreset(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl text-xs focus:outline-none focus:border-purple-500 cursor-pointer shadow-sm font-semibold"
+                style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
+              >
+                {presetOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id} style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <Button onClick={triggerAIProcess} className="w-full text-xs" disabled={status === "processing"}>
               {status === "processing" 
                 ? (transcript.startsWith("Transcribing audio file") 
                    ? "Transcribing audio..." 
-                   : (preset === "minutes" 
-                      ? "Generating minutes..." 
-                      : (preset === "actions" 
-                         ? "Extracting action items..." 
-                         : "Generating summary...")))
+                   : "Generating output...")
                 : "Compile Transcription"}
               <RefreshCw className={`ml-2 h-4 w-4 ${status === "processing" ? "animate-spin" : ""}`} />
             </Button>
@@ -609,44 +579,8 @@ export default function AudioTransformPage() {
         </div>
 
         {/* Right Output Converted Preview Area */}
-        <div className="md:col-span-6">
-          <GlassCard className="h-[520px] flex flex-col justify-between border-slate-200 bg-white shadow-sm" style={{ backgroundColor: T.bgCard, borderColor: T.border }}>
-            <div className="space-y-4 flex-1 flex flex-col min-h-0">
-              <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: T.border }}>
-                <span className="text-xs font-bold" style={{ color: T.textPrimary }}>ACT Converted Output</span>
-                <span className="text-[10px]" style={{ color: T.textSecondary }}>Target: Converted Markdown</span>
-              </div>
-
-              <div 
-                className="flex-1 overflow-y-auto p-4 rounded-xl border font-mono text-[11px] leading-relaxed whitespace-pre-wrap"
-                style={{ backgroundColor: T.bgInput, borderColor: T.border, color: T.textPrimary }}
-              >
-                {output ? (
-                  output
-                ) : (
-                  <span className="text-slate-400 italic">Target output markdown will render here. Choose a preset and click compile.</span>
-                )}
-              </div>
-            </div>
-
-            {output && (
-              <div className="pt-4 border-t" style={{ borderColor: T.border }}>
-                <Button 
-                  onClick={() => {
-                    const blob = new Blob([output], { type: "text/markdown" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `ACT_audio_transcription.md`;
-                    a.click();
-                  }} 
-                  className="w-full text-xs"
-                >
-                  Download Output (.md)
-                </Button>
-              </div>
-            )}
-          </GlassCard>
+        <div className="md:col-span-6 space-y-6">
+          <OutputPanel output={output} setOutput={setOutput} T={T} className="h-[520px]" />
         </div>
 
       </div>
