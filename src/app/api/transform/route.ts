@@ -4,7 +4,10 @@ import { ModelManager } from "@/ai/ModelManager";
 
 export async function POST(req: NextRequest) {
   try {
-    const { text, fileData, fileName, fileType, format, model, apiKey, openaiKey, cohereKey } = await req.json();
+    const { 
+      text, fileData, fileName, fileType, format, model, apiKey, openaiKey, cohereKey,
+      targetFormats, audience, tone, language, detailLevel, communicationObjective, contentStyle 
+    } = await req.json();
 
     let extractedText = "";
 
@@ -69,9 +72,23 @@ Return ONLY the raw extracted document content. Do not summarize or answer queri
     }
 
     // Build the instruction
+    const isMultiFormat = targetFormats && Array.isArray(targetFormats) && targetFormats.length > 0;
+    const formatInstruction = isMultiFormat
+      ? `You must transform the provided extracted document text into ALL of the following requested formats: ${targetFormats.join(", ")}.\nSeparate each output section clearly using Markdown headings (e.g. # Summary, # FAQ, etc.).`
+      : `You must transform the provided extracted document text into the following target format: "${format}".`;
+
+    const audienceInstruction = audience ? `\nTarget Audience: ${audience}` : "";
+    const toneInstruction = tone ? `\nTone: ${tone}` : "";
+    const languageInstruction = language && language !== "Auto Detect" ? `\nLanguage: ${language}` : "";
+    const detailInstruction = detailLevel ? `\nDetail Level: ${detailLevel}` : "";
+    const objectiveInstruction = communicationObjective ? `\nCommunication Objective: ${communicationObjective}` : "";
+    const styleInstruction = contentStyle ? `\nContent Style: ${contentStyle}` : "";
+
     const prompt = `You are ACT (AI Content Transformation Assistant), an enterprise-grade content transformation engine.
-You must transform the provided extracted document text into the following target format: "${format}".
-Ensure the output is high-quality and styled in clean Markdown.
+${formatInstruction}
+${audienceInstruction}${toneInstruction}${languageInstruction}${detailInstruction}${objectiveInstruction}${styleInstruction}
+
+Ensure the output is high-quality and styled in clean Markdown. For specific formats like Video Package, Infographic, Presentation, Advisory, or Executive Summary, use structured sections (Title, Script, Slides, Recommendations, etc.) as appropriate.
 
 Extracted Document Content:
 """

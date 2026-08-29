@@ -12,6 +12,11 @@ interface JobItem {
   date: string;
   tokens: string;
   status: string;
+  model?: string;
+  latency?: string;
+  outputs?: string;
+  downloads?: number;
+  timestamp?: string;
 }
 
 export default function HistoryPage() {
@@ -84,8 +89,12 @@ export default function HistoryPage() {
                 <tr className="border-b border-slate-100 text-slate-600 font-bold bg-slate-50">
                   <th className="py-3.5 px-6">Source Item</th>
                   <th className="py-3.5 px-2">Pipeline Action</th>
+                  <th className="py-3.5 px-2">Model</th>
+                  <th className="py-3.5 px-2">Outputs</th>
+                  <th className="py-3.5 px-2">Latency</th>
+                  <th className="py-3.5 px-2">Downloads</th>
                   <th className="py-3.5 px-2">Tokens Used</th>
-                  <th className="py-3.5 px-2">Processed Date</th>
+                  <th className="py-3.5 px-2">Date</th>
                   <th className="py-3.5 px-6 text-right">Actions</th>
                 </tr>
               </thead>
@@ -98,7 +107,11 @@ export default function HistoryPage() {
                         {job.file}
                       </span>
                     </td>
-                    <td className="py-4 px-2">{job.action}</td>
+                    <td className="py-4 px-2 truncate max-w-[150px]">{job.action}</td>
+                    <td className="py-4 px-2">{job.model || "Gemini Pro"}</td>
+                    <td className="py-4 px-2 truncate max-w-[120px]" title={job.outputs}>{job.outputs || "Single"}</td>
+                    <td className="py-4 px-2 text-slate-500 font-mono">{job.latency || "N/A"}</td>
+                    <td className="py-4 px-2 font-bold">{job.downloads || 0}</td>
                     <td className="py-4 px-2 text-cyan-700 font-mono font-bold">{job.tokens}</td>
                     <td className="py-4 px-2 text-slate-500">{job.date}</td>
                     <td className="py-4 px-6 text-right space-x-2">

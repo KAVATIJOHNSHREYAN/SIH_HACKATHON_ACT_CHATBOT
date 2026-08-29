@@ -13,16 +13,26 @@ import { ApiClient } from "@/lib/apiClient";
 import { useTheme, LIGHT, DARK } from "@/contexts/ThemeContext";
 
 const TARGET_FORMATS = [
-  { group: "Summaries & Docs", formats: ["Summary", "Detailed Summary", "Article", "Blog", "Notes", "Meeting Minutes", "Research Summary"] },
-  { group: "Structured & Code", formats: ["JSON", "CSV", "Markdown", "HTML", "Code Explanation", "Code Documentation"] },
-  { group: "Study & Testing", formats: ["MCQs", "Flashcards", "FAQ"] },
-  { group: "Specialized", formats: ["Legal Simplification", "Medical Document Summary", "Tone Conversion", "Translation", "Press Release", "Resume", "LinkedIn Post", "Social Media Post", "OCR Text"] },
+  { group: "Summaries & Docs", formats: ["Summary", "Detailed Summary", "Article", "Blog", "Notes", "Meeting Minutes", "Research Summary", "Executive Summary", "Case Study", "Study Notes", "Revision Notes", "Assignment", "Documentation", "Standard Operating Procedure", "Policy Draft", "Technical Documentation", "API Documentation", "README Generator", "White Paper", "Workflow Document"] },
+  { group: "Structured & Code", formats: ["JSON", "CSV", "Markdown", "HTML", "Code Explanation", "Code Documentation", "Checklist", "Decision Matrix", "Comparison Table", "Timeline", "Roadmap", "Mind Map Content"] },
+  { group: "Study & Testing", formats: ["MCQs", "Flashcards", "FAQ", "Interview Questions", "Question Bank"] },
+  { group: "Social Media & Marketing", formats: ["LinkedIn Post", "Twitter/X Thread", "Instagram Caption", "Facebook Post", "Newsletter", "Press Release", "Business Proposal"] },
+  { group: "Multimedia Generation", formats: ["Video Package", "Video Script", "Podcast Script", "Infographic Content", "Presentation Slides", "Speaker Notes", "Training Manual"] },
+  { group: "Specialized", formats: ["Legal Simplification", "Medical Document Summary", "Tone Conversion", "Translation", "Resume", "Social Media Post", "OCR Text", "Cyber Advisory", "Threat Report", "Incident Report", "Risk Assessment", "Email Reply", "Cover Letter", "Resume Improvement", "Speech", "Debate", "Advisory"] },
 ];
 
 const CONVERTER_PRESETS = [
-  { group: "Office & PDF", options: ["Word to PDF", "Excel to PDF", "PowerPoint to PDF", "Merge PDF", "Split PDF", "Compress PDF"] },
-  { group: "Media Converters", options: ["Image Converter", "Audio Converter", "Video Converter", "Office Converter"] }
+  { group: "Universal Office & Document", options: ["PDF to DOCX", "PDF to PPTX", "PDF to XLSX", "DOCX to PDF", "DOC to PDF", "PPTX to PDF", "PPT to PDF", "XLSX to PDF", "XLS to PDF", "TXT to PDF", "MD to PDF", "HTML to PDF", "RTF to PDF", "ODT to PDF", "ODS to PDF", "ODP to PDF"] },
+  { group: "Images & Visuals", options: ["JPG to PNG", "PNG to JPG", "WEBP to PNG", "BMP to JPG", "TIFF to PNG", "SVG to PNG", "GIF to MP4"] },
+  { group: "Audio & Video", options: ["MP4 to MP3", "WAV to MP3", "AAC to MP3", "M4A to MP3", "MOV to MP4", "AVI to MP4", "MKV to MP4", "WEBM to MP4"] }
 ];
+
+const AUDIENCES = ["Students", "Teachers", "Researchers", "Executives", "Military", "Government", "Cyber Security", "General Public", "Business", "Healthcare", "Custom"];
+const TONES = ["Professional", "Formal", "Technical", "Simple", "Beginner", "Marketing", "Friendly", "Persuasive", "Neutral", "Academic"];
+const LANGUAGES = ["English", "Hindi", "Telugu", "Tamil", "Kannada", "Malayalam", "Marathi", "Gujarati", "Bengali", "Urdu", "Auto Detect"];
+const DETAIL_LEVELS = ["Short", "Medium", "Detailed", "Comprehensive"];
+const OBJECTIVES = ["Educate", "Summarize", "Report", "Advertise", "Train", "Present", "Explain", "Alert", "Promote", "Recommend"];
+const STYLES = ["Bullet Points", "Paragraph", "Report", "Presentation", "Article", "Script", "Dialogue", "Table", "Professional", "Minimal"];
 
 export default function TransformPage() {
   const { isDark } = useTheme();
@@ -44,10 +54,18 @@ export default function TransformPage() {
   const [ocrLanguage, setOcrLanguage] = useState("English");
   
   // Pipeline execution parameters
-  const [targetFormat, setTargetFormat] = useState("Summary");
+  const [targetFormats, setTargetFormats] = useState<string[]>(["Summary"]);
   const [selectedModel, setSelectedModel] = useState("Gemini Pro");
-  const [conversionPreset, setConversionPreset] = useState("Word to PDF");
+  const [conversionPreset, setConversionPreset] = useState("PDF to DOCX");
   const [pipelineMode, setPipelineMode] = useState<"transform" | "convert">("transform");
+
+  // Advanced SIH Parameters
+  const [audience, setAudience] = useState("");
+  const [tone, setTone] = useState("");
+  const [language, setLanguage] = useState("English");
+  const [detailLevel, setDetailLevel] = useState("Medium");
+  const [communicationObjective, setCommunicationObjective] = useState("");
+  const [contentStyle, setContentStyle] = useState("");
 
   // Pipeline running status
   const [status, setStatus] = useState<"idle" | "uploading" | "processing" | "done" | "error">("idle");
@@ -254,23 +272,36 @@ export default function TransformPage() {
 
       const activeFile = getActiveFile();
 
+      const basePayload = {
+        format: targetFormats.join(", "),
+        targetFormats,
+        audience,
+        tone,
+        language,
+        detailLevel,
+        communicationObjective,
+        contentStyle,
+        model: selectedModel,
+        apiKey: savedApiKey || null,
+        openaiKey: savedOpenaiKey || null,
+        cohereKey: savedCohereKey || null
+      };
+
       const payload = activeTab === "text"
-        ? { text: rawText, format: targetFormat, model: selectedModel, apiKey: savedApiKey || null, openaiKey: savedOpenaiKey || null, cohereKey: savedCohereKey || null }
+        ? { text: rawText, ...basePayload }
         : activeTab === "url"
-        ? { text: `Extract content and transform from URL: ${urlInput}`, format: targetFormat, model: selectedModel, apiKey: savedApiKey || null, openaiKey: savedOpenaiKey || null, cohereKey: savedCohereKey || null }
+        ? { text: `Extract content and transform from URL: ${urlInput}`, ...basePayload }
         : {
             fileData: selectedFileBase64 || undefined,
             text: fileContent || undefined,
             fileName: activeFile?.name,
             fileType: activeFile?.type,
-            format: targetFormat,
-            model: selectedModel,
-            apiKey: savedApiKey || null,
-            openaiKey: savedOpenaiKey || null,
-            cohereKey: savedCohereKey || null
+            ...basePayload
           };
 
+      const startTime = Date.now();
       const data = await ApiClient.postTransform(payload);
+      const latency = `${((Date.now() - startTime) / 1000).toFixed(1)}s`;
 
       setStatus("done");
       setStage("Completed");
@@ -279,9 +310,12 @@ export default function TransformPage() {
 
       saveToHistory({
         file: activeFile ? activeFile.name : activeTab === "url" ? urlInput : "Raw Text",
-        action: `AI Trans: ${targetFormat}`,
+        action: `AI Trans: ${targetFormats.join(", ")}`,
         tokens: Math.floor((fileContent || rawText || urlInput).length / 4) + 100,
-        model: selectedModel
+        model: selectedModel,
+        latency: latency,
+        outputs: targetFormats.join(", "),
+        downloads: 0
       });
 
     } catch (err: any) {
@@ -336,7 +370,9 @@ export default function TransformPage() {
     }
   };
 
-  const saveToHistory = (item: { file: string; action: string; tokens: number; model: string }) => {
+  const [downloadFormat, setDownloadFormat] = useState("MD");
+
+  const saveToHistory = (item: { file: string; action: string; tokens: number; model: string; latency?: string; outputs?: string; downloads?: number }) => {
     if (typeof window !== "undefined") {
       const historyStr = localStorage.getItem("act_transform_history") || "[]";
       const history = JSON.parse(historyStr);
@@ -346,21 +382,44 @@ export default function TransformPage() {
         action: item.action,
         date: new Date().toISOString().split("T")[0],
         tokens: item.tokens.toString(),
-        status: "Completed"
+        status: "Completed",
+        model: item.model,
+        latency: item.latency || "N/A",
+        outputs: item.outputs || "Single",
+        downloads: item.downloads || 0,
+        timestamp: new Date().toISOString()
       };
       localStorage.setItem("act_transform_history", JSON.stringify([newJob, ...history]));
     }
   };
 
-  const downloadOutput = () => {
+  const downloadOutput = (format: string = downloadFormat) => {
     if (!outputPreview) return;
-    const blob = new Blob([outputPreview], { type: "text/markdown" });
+    
+    let mimeType = "text/plain";
+    let extension = format.toLowerCase();
+    let content = outputPreview;
+
+    if (format === "HTML") {
+      mimeType = "text/html";
+      content = `<html><body><pre>${outputPreview}</pre></body></html>`;
+    } else if (format === "JSON") {
+      mimeType = "application/json";
+      content = JSON.stringify({ output: outputPreview }, null, 2);
+    } else if (format === "CSV") {
+      mimeType = "text/csv";
+      content = `Output\n"${outputPreview.replace(/"/g, '""')}"`;
+    } else if (format === "MD") {
+      mimeType = "text/markdown";
+    }
+
+    const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `ACT_transform_output.md`;
+    a.download = `ACT_transform_output.${extension}`;
     a.click();
-    triggerToast("Output file downloaded successfully!");
+    triggerToast(`Output file downloaded as ${format}!`);
   };
 
   const handleSaveToProject = () => {
@@ -372,13 +431,13 @@ export default function TransformPage() {
     const files = JSON.parse(currentFilesStr);
     const newFile = {
       id: `saved_${Date.now()}`,
-      name: `ACT_Output_${targetFormat}.md`,
+      name: `ACT_Output_${targetFormats[0] || "Content"}.md`,
       type: "Markdown",
       size: `${(outputPreview.length / 1024).toFixed(2)} KB`,
       date: new Date().toISOString().split("T")[0],
       starred: false,
       summary: outputPreview,
-      tags: ["ACT Output", targetFormat]
+      tags: ["ACT Output", ...targetFormats]
     };
     localStorage.setItem("act_user_files", JSON.stringify([newFile, ...files]));
     triggerToast("Saved output to Project Workspace!");
@@ -495,7 +554,7 @@ export default function TransformPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [rawText, urlInput, docFile, imgFiles, ocrFile, audioFile, videoFile, targetFormat, selectedModel, conversionPreset, pipelineMode, outputPreview, showShortcutsModal]);
+  }, [rawText, urlInput, docFile, imgFiles, ocrFile, audioFile, videoFile, targetFormats, audience, tone, language, detailLevel, communicationObjective, contentStyle, selectedModel, conversionPreset, pipelineMode, outputPreview, showShortcutsModal]);
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto relative">
@@ -803,22 +862,76 @@ export default function TransformPage() {
             {/* AI Transformation Options */}
             {pipelineMode === "transform" ? (
               <div className="space-y-4 pt-1">
-                <div className="space-y-1.5">
-                  <label className="block text-[9px] uppercase tracking-wide text-slate-500 font-bold">Target Output Preset</label>
-                  <select
-                    value={targetFormat}
-                    onChange={(e) => setTargetFormat(e.target.value)}
-                    className="w-full p-3 rounded-xl text-xs bg-slate-900 text-white border"
-                    style={{ borderColor: T.border }}
-                  >
+                <div className="space-y-2">
+                  <label className="block text-[10px] uppercase tracking-wide text-slate-500 font-bold">Target Output Presets (Select Multiple)</label>
+                  <div className="w-full max-h-48 overflow-y-auto p-3 rounded-xl bg-slate-900 border text-xs text-white" style={{ borderColor: T.border }}>
                     {TARGET_FORMATS.map(group => (
-                      <optgroup key={group.group} label={group.group}>
-                        {group.formats.map(fmt => (
-                          <option key={fmt} value={fmt}>{fmt}</option>
-                        ))}
-                      </optgroup>
+                      <div key={group.group} className="mb-3 last:mb-0">
+                        <div className="text-[10px] text-purple-400 font-bold uppercase mb-1.5">{group.group}</div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {group.formats.map(fmt => (
+                            <label key={fmt} className="flex items-center gap-2 cursor-pointer hover:text-purple-300 transition-colors">
+                              <input 
+                                type="checkbox" 
+                                checked={targetFormats.includes(fmt)}
+                                onChange={(e) => {
+                                  if (e.target.checked) setTargetFormats([...targetFormats, fmt]);
+                                  else setTargetFormats(targetFormats.filter(f => f !== fmt));
+                                }}
+                                className="rounded bg-slate-800 border-slate-700 text-purple-500 focus:ring-purple-500"
+                              />
+                              <span className="truncate">{fmt}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
                     ))}
-                  </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-[9px] uppercase tracking-wide text-slate-500 font-bold">Language</label>
+                    <select value={language} onChange={(e) => setLanguage(e.target.value)} className="w-full p-2.5 rounded-xl text-xs bg-slate-900 text-white border" style={{ borderColor: T.border }}>
+                      <option value="">Auto Detect</option>
+                      {LANGUAGES.filter(l => l !== "Auto Detect").map(l => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[9px] uppercase tracking-wide text-slate-500 font-bold">Tone</label>
+                    <select value={tone} onChange={(e) => setTone(e.target.value)} className="w-full p-2.5 rounded-xl text-xs bg-slate-900 text-white border" style={{ borderColor: T.border }}>
+                      <option value="">Default Tone</option>
+                      {TONES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[9px] uppercase tracking-wide text-slate-500 font-bold">Target Audience</label>
+                    <select value={audience} onChange={(e) => setAudience(e.target.value)} className="w-full p-2.5 rounded-xl text-xs bg-slate-900 text-white border" style={{ borderColor: T.border }}>
+                      <option value="">Default Audience</option>
+                      {AUDIENCES.map(a => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[9px] uppercase tracking-wide text-slate-500 font-bold">Detail Level</label>
+                    <select value={detailLevel} onChange={(e) => setDetailLevel(e.target.value)} className="w-full p-2.5 rounded-xl text-xs bg-slate-900 text-white border" style={{ borderColor: T.border }}>
+                      <option value="">Default Length</option>
+                      {DETAIL_LEVELS.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[9px] uppercase tracking-wide text-slate-500 font-bold">Objective</label>
+                    <select value={communicationObjective} onChange={(e) => setCommunicationObjective(e.target.value)} className="w-full p-2.5 rounded-xl text-xs bg-slate-900 text-white border" style={{ borderColor: T.border }}>
+                      <option value="">Default Objective</option>
+                      {OBJECTIVES.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[9px] uppercase tracking-wide text-slate-500 font-bold">Style</label>
+                    <select value={contentStyle} onChange={(e) => setContentStyle(e.target.value)} className="w-full p-2.5 rounded-xl text-xs bg-slate-900 text-white border" style={{ borderColor: T.border }}>
+                      <option value="">Default Style</option>
+                      {STYLES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -919,13 +1032,27 @@ export default function TransformPage() {
                     >
                       <Clipboard className="h-4 w-4" />
                     </button>
-                    <button
-                      onClick={downloadOutput}
-                      className="p-1.5 text-slate-500 hover:text-slate-200"
-                      title="Download Output (Ctrl+D)"
-                    >
-                      <Download className="h-4 w-4" />
-                    </button>
+                    
+                    <div className="flex items-center gap-1 border rounded-lg pl-2 overflow-hidden bg-slate-900 border-slate-700">
+                      <select 
+                        value={downloadFormat}
+                        onChange={(e) => setDownloadFormat(e.target.value)}
+                        className="bg-transparent text-[10px] font-bold text-slate-300 focus:outline-none cursor-pointer"
+                      >
+                        <option value="MD">.MD</option>
+                        <option value="TXT">.TXT</option>
+                        <option value="HTML">.HTML</option>
+                        <option value="JSON">.JSON</option>
+                        <option value="CSV">.CSV</option>
+                      </select>
+                      <button
+                        onClick={() => downloadOutput(downloadFormat)}
+                        className="p-1.5 text-purple-400 hover:text-purple-300 border-l border-slate-700 bg-slate-800"
+                        title="Download Output (Ctrl+D)"
+                      >
+                        <Download className="h-4 w-4" />
+                      </button>
+                    </div>
                   </>
                 )}
               </div>
