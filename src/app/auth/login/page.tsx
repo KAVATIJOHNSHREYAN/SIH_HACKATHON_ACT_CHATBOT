@@ -21,6 +21,9 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [hasBiometric, setHasBiometric] = useState(false);
   const [biometricLoading, setBiometricLoading] = useState<"fingerprint" | "face" | null>(null);
+  const [showFallbackModal, setShowFallbackModal] = useState(false);
+  const [fallbackPassword, setFallbackPassword] = useState("");
+  const [fallbackError, setFallbackError] = useState("");
 
   // Styling maps matching both interfaces
   const bgStyle = isDark
@@ -154,34 +157,96 @@ export default function LoginPage() {
     setError("");
     setBiometricLoading(type);
     try {
-      if (window.PublicKeyCredential) {
+      if (typeof window !== "undefined" && window.PublicKeyCredential) {
+        // Verify platform authenticator availability
+        const isAvailable = await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+        if (!isAvailable) {
+          setError("No biometrics enrolled or device security not configured. Falling back to account password/PIN...");
+          setBiometricLoading(null);
+          setShowFallbackModal(true);
+          return;
+        }
+
         const challenge = new Uint8Array(32);
         window.crypto.getRandomValues(challenge);
 
+        // Native authenticator prompt
         const credential = await navigator.credentials.get({
           publicKey: {
             challenge,
             allowCredentials: [],
             userVerification: "required",
-            timeout: 10000
+            timeout: 15000
           }
-        }).catch(() => null);
+        });
 
         if (credential) {
           logInBiometricUser();
+        } else {
+          throw new Error("Biometric verification rejected.");
+        }
+      } else {
+        setError("Hardware unavailable: Biometric authentication APIs are not supported on this browser.");
+        setBiometricLoading(null);
+        setShowFallbackModal(true);
+      }
+    } catch (err: any) {
+      console.error("Biometric verification error:", err);
+      setBiometricLoading(null);
+
+      // Handle standard WebAuthn exception types
+      if (err.name === "NotAllowedError") {
+        setError("Authentication failed: User cancelled the biometric verification prompt.");
+      } else if (err.name === "NotSupportedError") {
+        setError("Device security not configured or biometric hardware unavailable.");
+        setShowFallbackModal(true);
+      } else if (err.name === "SecurityError") {
+        setError("Security block: Origin is untrusted or context insecure.");
+      } else {
+        setError(`Authentication failed: ${err.message || "Please input password/PIN instead."}`);
+      }
+    }
+  };
+
+  const handleFallbackSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setFallbackError("");
+
+    const biometricUser = localStorage.getItem("act_biometric_user") || "biometric_guest@act.com";
+    const raw = localStorage.getItem("act_user");
+
+    if (raw) {
+      try {
+        const stored = JSON.parse(raw);
+        if (stored.email === biometricUser.trim().toLowerCase() && stored.password === fallbackPassword) {
+          login({ ...stored });
+          setShowFallbackModal(false);
+          router.push("/dashboard");
           return;
         }
+      } catch (err) {
+        console.error("Error parsing account data:", err);
       }
+    }
 
-      // Sandbox Fallback
-      setTimeout(() => {
-        logInBiometricUser();
-      }, 1000);
-
-    } catch (err: any) {
-      console.error(err);
-      setError("Biometric verification failed: " + err.message);
-      setBiometricLoading(null);
+    // Default simulation code for guest verification fallback
+    if (fallbackPassword === "123456" || fallbackPassword === "password") {
+      login({
+        id: `biometric_fallback_${Date.now()}`,
+        name: biometricUser.split("@")[0],
+        email: biometricUser,
+        organization: "",
+        role: "User",
+        plan: "Free",
+        bio: "",
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        achievements: [],
+      });
+      setShowFallbackModal(false);
+      router.push("/dashboard");
+    } else {
+      setFallbackError("Invalid password or device PIN. Access Denied.");
     }
   };
 
@@ -473,6 +538,58 @@ export default function LoginPage() {
           </p>
         </GlassCard>
       </div>
+
+      {/* PIN / Password Fallback Modal */}
+      {showFallbackModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <GlassCard className="max-w-sm w-full p-6 space-y-4" style={cardStyle}>
+            <div className="text-center">
+              <Laptop className="h-10 w-10 text-purple-400 mx-auto mb-2" />
+              <h3 className="text-sm font-bold text-white">Device Security Verification</h3>
+              <p className="text-[10px] text-slate-400 mt-1">Biometrics unavailable. Enter password or device PIN code (123456) to verify access.</p>
+            </div>
+
+            <form onSubmit={handleFallbackSubmit} className="space-y-3">
+              <div>
+                <input
+                  type="password"
+                  required
+                  value={fallbackPassword}
+                  onChange={(e) => setFallbackPassword(e.target.value)}
+                  placeholder="Enter password or 6-digit PIN..."
+                  className="w-full px-4 py-2.5 rounded-xl text-xs focus:outline-none border text-white text-center"
+                  style={{
+                    backgroundColor: inputBg,
+                    borderColor: inputBorder,
+                  }}
+                />
+                {fallbackError && (
+                  <p className="text-red-400 text-[10px] mt-1 text-center font-bold">{fallbackError}</p>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-1/2 text-xs py-2 bg-slate-900 border-white/5 text-white" 
+                  onClick={() => setShowFallbackModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  className="w-1/2 text-xs py-2 text-white"
+                  style={{ background: primaryButtonBg, boxShadow: primaryButtonShadow }}
+                >
+                  Verify Access
+                </Button>
+              </div>
+            </form>
+          </GlassCard>
+        </div>
+      )}
+
     </div>
   );
 }
