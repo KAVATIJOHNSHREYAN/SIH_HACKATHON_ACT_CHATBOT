@@ -208,9 +208,21 @@ export default function TransformPage() {
 
   // Run File Conversion Pipeline
   const handleConvert = async () => {
-    if (!selectedFile) {
-      setErrorMsg("Please upload a file to convert.");
-      return;
+    if (activeTab === "text") {
+      if (!inputText.trim()) {
+        setErrorMsg("Please write or paste raw text first.");
+        return;
+      }
+    } else if (activeTab === "url") {
+      if (!urlInput.trim()) {
+        setErrorMsg("Please enter a valid webpage URL.");
+        return;
+      }
+    } else {
+      if (!selectedFile) {
+        setErrorMsg("Please upload a file to convert.");
+        return;
+      }
     }
 
     setErrorMsg("");
@@ -229,11 +241,14 @@ export default function TransformPage() {
       setStage("Conversion complete");
       setProgress(100);
 
-      const downloadName = selectedFile.name.split(".")[0] + "_converted.pdf";
-      setOutputPreview(`### File Conversion Complete!\n\nYour file **${selectedFile.name}** has been successfully converted into target format preset **${conversionPreset}**.\n\n- **Target File:** ${downloadName}\n- **Output Size:** ${(selectedFile.size * 0.95 / 1024 / 1024).toFixed(2)} MB\n\nClick the download link below to save your converted output.`);
+      const downloadName = selectedFile ? selectedFile.name.split(".")[0] + "_converted.pdf" : activeTab === "url" ? "webpage_converted.pdf" : "text_converted.pdf";
+      const sizeStr = selectedFile ? `${(selectedFile.size * 0.95 / 1024 / 1024).toFixed(2)} MB` : "0.01 MB";
+      const displaySource = selectedFile ? selectedFile.name : activeTab === "url" ? urlInput : "Raw Text";
+
+      setOutputPreview(`### File Conversion Complete!\n\nYour source **${displaySource}** has been successfully converted into target format preset **${conversionPreset}**.\n\n- **Target File:** ${downloadName}\n- **Output Size:** ${sizeStr}\n\nClick the download link below to save your converted output.`);
 
       saveToHistory({
-        file: selectedFile.name,
+        file: displaySource,
         action: `Convert: ${conversionPreset}`,
         tokens: 0,
         model: "ACT Converter Node"
@@ -682,7 +697,7 @@ export default function TransformPage() {
             <div className="flex border-t pt-4" style={{ borderColor: T.border }}>
               <button
                 type="button"
-                onClick={() => setPipelineMode("transform")}
+                onClick={() => { setPipelineMode("transform"); resetForm(); }}
                 className="flex-1 text-center py-2 rounded-xl text-xs font-bold transition-all"
                 style={{
                   backgroundColor: pipelineMode === "transform" ? "rgba(168,85,247,0.15)" : "transparent",
@@ -693,7 +708,7 @@ export default function TransformPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setPipelineMode("convert")}
+                onClick={() => { setPipelineMode("convert"); resetForm(); }}
                 className="flex-1 text-center py-2 rounded-xl text-xs font-bold transition-all"
                 style={{
                   backgroundColor: pipelineMode === "convert" ? "rgba(168,85,247,0.15)" : "transparent",
