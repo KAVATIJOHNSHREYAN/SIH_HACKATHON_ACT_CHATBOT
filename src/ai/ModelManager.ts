@@ -243,6 +243,15 @@ export class ModelManager {
       }
     }
 
+    // Ultimate Failover: If all Gemini models fail due to quota/rate-limits (429), provide a graceful Sandbox response
+    if (lastError && (lastError.message?.includes("429") || lastError.status === 429 || lastError.message?.includes("quota"))) {
+      console.warn("[ACT_LOG] AI API Quota completely exhausted. Falling back to Sandbox Mode to preserve application stability.");
+      return {
+        text: `### [Sandbox Fallback Mode Activated]\n\nYour AI provider quota has been completely exhausted (429 Rate Limit/Quota Exceeded).\n\nTo prevent the application from crashing, ACT has activated Sandbox Mode. Please upgrade your API billing or provide a new key in Settings.\n\n**Processed Content Preview:**\n\n${prompt.substring(0, 500)}...`,
+        modelUsed: "Sandbox Mock (Quota Exhausted)"
+      };
+    }
+
     throw lastError || new Error("All Gemini models failed to respond.");
   }
 
