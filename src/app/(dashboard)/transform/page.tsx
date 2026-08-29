@@ -31,11 +31,15 @@ export default function TransformPage() {
   // Active Input Mode Tab
   const [activeTab, setActiveTab] = useState<"text" | "documents" | "images" | "ocr" | "audio" | "video" | "url">("documents");
 
-  // Inputs
-  const [inputText, setInputText] = useState("");
+  // Independent module states
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [rawText, setRawText] = useState("");
+  const [imgFiles, setImgFiles] = useState<File[]>([]);
+  const [ocrFile, setOcrFile] = useState<File | null>(null);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [urlInput, setUrlInput] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [multipleFiles, setMultipleFiles] = useState<File[]>([]);
+
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [ocrLanguage, setOcrLanguage] = useState("English");
   
@@ -51,6 +55,8 @@ export default function TransformPage() {
   const [progress, setProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState("");
   const [outputPreview, setOutputPreview] = useState("");
+
+  // Base64 file conversion parameters
   const [fileContent, setFileContent] = useState<string>("");
   const [selectedFileBase64, setSelectedFileBase64] = useState<string>("");
 
@@ -61,43 +67,109 @@ export default function TransformPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Character and Word counters for text
-  const charCount = inputText.length;
-  const wordCount = inputText.trim() === "" ? 0 : inputText.trim().split(/\s+/).length;
+  const charCount = rawText.length;
+  const wordCount = rawText.trim() === "" ? 0 : rawText.trim().split(/\s+/).length;
 
   const triggerToast = (msg: string) => {
     setShortcutToast(msg);
     setTimeout(() => setShortcutToast(null), 2500);
   };
 
+  // Centralized Validation Utility
+  const validateModuleInput = (tab: typeof activeTab, mode: typeof pipelineMode): { isValid: boolean; error?: string } => {
+    switch (tab) {
+      case "text":
+        if (!rawText.trim()) {
+          return { isValid: false, error: "Please write or paste raw text first." };
+        }
+        return { isValid: true };
+      case "url":
+        if (!urlInput.trim()) {
+          return { isValid: false, error: "Please enter a valid webpage URL." };
+        }
+        return { isValid: true };
+      case "documents":
+        if (!docFile) {
+          return { isValid: false, error: mode === "transform" ? "Please upload a source file first." : "Please upload a file to convert." };
+        }
+        return { isValid: true };
+      case "images":
+        if (imgFiles.length === 0) {
+          return { isValid: false, error: mode === "transform" ? "Please upload a source file first." : "Please upload a file to convert." };
+        }
+        return { isValid: true };
+      case "ocr":
+        if (!ocrFile) {
+          return { isValid: false, error: mode === "transform" ? "Please upload a source file first." : "Please upload a file to convert." };
+        }
+        return { isValid: true };
+      case "audio":
+        if (!audioFile) {
+          return { isValid: false, error: mode === "transform" ? "Please upload a source file first." : "Please upload a file to convert." };
+        }
+        return { isValid: true };
+      case "video":
+        if (!videoFile) {
+          return { isValid: false, error: mode === "transform" ? "Please upload a source file first." : "Please upload a file to convert." };
+        }
+        return { isValid: true };
+      default:
+        return { isValid: false, error: "Invalid module selected." };
+    }
+  };
+
+  const handleTabChange = (tabId: typeof activeTab) => {
+    setActiveTab(tabId);
+    setErrorMsg("");
+    setStatus("idle");
+    setProgress(0);
+    setOutputPreview("");
+    
+    // Clear previous states
+    setDocFile(null);
+    setRawText("");
+    setImgFiles([]);
+    setImagePreview(null);
+    setOcrFile(null);
+    setAudioFile(null);
+    setVideoFile(null);
+    setUrlInput("");
+    setFileContent("");
+    setSelectedFileBase64("");
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     
-    if (activeTab === "images") {
+    const file = files[0];
+    setErrorMsg("");
+
+    if (file.size > 150 * 1024 * 1024) {
+      setErrorMsg("File is too large. Max size is 150MB.");
+      return;
+    }
+
+    // Set separate state variables based on active tab
+    if (activeTab === "documents") {
+      setDocFile(file);
+    } else if (activeTab === "images") {
       const arr = Array.from(files);
-      setMultipleFiles(arr);
+      setImgFiles(arr);
       const reader = new FileReader();
       reader.onload = (event) => {
         setImagePreview(event.target?.result as string);
       };
-      reader.readAsDataURL(arr[0]);
-      processFile(arr[0]);
-    } else {
-      processFile(files[0]);
-    }
-  };
-
-  const processFile = (file: File) => {
-    setSelectedFile(file);
-    setErrorMsg("");
-    resetForm();
-
-    if (file.size > 150 * 1024 * 1024) {
-      setErrorMsg("File is too large. Max size is 150MB.");
-      setSelectedFile(null);
-      return;
+      reader.readAsDataURL(file);
+    } else if (activeTab === "ocr") {
+      setOcrFile(file);
+    } else if (activeTab === "audio") {
+      setAudioFile(file);
+    } else if (activeTab === "video") {
+      setVideoFile(file);
     }
 
+    // Process file base64 and text buffers
     const reader = new FileReader();
     if (
       file.type === "text/plain" ||
@@ -123,30 +195,41 @@ export default function TransformPage() {
     }
   };
 
+  const getActiveFile = (): File | null => {
+    switch (activeTab) {
+      case "documents": return docFile;
+      case "images": return imgFiles[0] || null;
+      case "ocr": return ocrFile;
+      case "audio": return audioFile;
+      case "video": return videoFile;
+      default: return null;
+    }
+  };
+
   const resetForm = () => {
     setStatus("idle");
     setProgress(0);
     setOutputPreview("");
     setErrorMsg("");
-    setSelectedFile(null);
-    setInputText("");
-    setUrlInput("");
-    setImagePreview(null);
-    setMultipleFiles([]);
+    
+    // Clear only current active tab elements
+    if (activeTab === "documents") setDocFile(null);
+    else if (activeTab === "text") setRawText("");
+    else if (activeTab === "images") { setImgFiles([]); setImagePreview(null); }
+    else if (activeTab === "ocr") setOcrFile(null);
+    else if (activeTab === "audio") setAudioFile(null);
+    else if (activeTab === "video") setVideoFile(null);
+    else if (activeTab === "url") setUrlInput("");
+
+    setFileContent("");
+    setSelectedFileBase64("");
   };
 
   // Run AI Transformation Pipeline
   const handleTransform = async () => {
-    if (activeTab === "text" && !inputText.trim()) {
-      setErrorMsg("Please write or paste raw text first.");
-      return;
-    }
-    if (activeTab === "url" && !urlInput.trim()) {
-      setErrorMsg("Please enter a valid webpage URL.");
-      return;
-    }
-    if (activeTab !== "text" && activeTab !== "url" && !selectedFile) {
-      setErrorMsg("Please upload a source file first.");
+    const check = validateModuleInput(activeTab, "transform");
+    if (!check.isValid) {
+      setErrorMsg(check.error || "Validation failed.");
       return;
     }
 
@@ -169,15 +252,17 @@ export default function TransformPage() {
       const savedOpenaiKey = typeof window !== "undefined" ? localStorage.getItem("openai_api_key") : "";
       const savedCohereKey = typeof window !== "undefined" ? localStorage.getItem("cohere_api_key") : "";
 
+      const activeFile = getActiveFile();
+
       const payload = activeTab === "text"
-        ? { text: inputText, format: targetFormat, model: selectedModel, apiKey: savedApiKey || null, openaiKey: savedOpenaiKey || null, cohereKey: savedCohereKey || null }
+        ? { text: rawText, format: targetFormat, model: selectedModel, apiKey: savedApiKey || null, openaiKey: savedOpenaiKey || null, cohereKey: savedCohereKey || null }
         : activeTab === "url"
         ? { text: `Extract content and transform from URL: ${urlInput}`, format: targetFormat, model: selectedModel, apiKey: savedApiKey || null, openaiKey: savedOpenaiKey || null, cohereKey: savedCohereKey || null }
         : {
             fileData: selectedFileBase64 || undefined,
             text: fileContent || undefined,
-            fileName: selectedFile?.name,
-            fileType: selectedFile?.type,
+            fileName: activeFile?.name,
+            fileType: activeFile?.type,
             format: targetFormat,
             model: selectedModel,
             apiKey: savedApiKey || null,
@@ -193,9 +278,9 @@ export default function TransformPage() {
       setOutputPreview(data.output);
 
       saveToHistory({
-        file: selectedFile ? selectedFile.name : activeTab === "url" ? urlInput : "Raw Text",
+        file: activeFile ? activeFile.name : activeTab === "url" ? urlInput : "Raw Text",
         action: `AI Trans: ${targetFormat}`,
-        tokens: Math.floor((fileContent || inputText || urlInput).length / 4) + 100,
+        tokens: Math.floor((fileContent || rawText || urlInput).length / 4) + 100,
         model: selectedModel
       });
 
@@ -208,21 +293,10 @@ export default function TransformPage() {
 
   // Run File Conversion Pipeline
   const handleConvert = async () => {
-    if (activeTab === "text") {
-      if (!inputText.trim()) {
-        setErrorMsg("Please write or paste raw text first.");
-        return;
-      }
-    } else if (activeTab === "url") {
-      if (!urlInput.trim()) {
-        setErrorMsg("Please enter a valid webpage URL.");
-        return;
-      }
-    } else {
-      if (!selectedFile) {
-        setErrorMsg("Please upload a file to convert.");
-        return;
-      }
+    const check = validateModuleInput(activeTab, "convert");
+    if (!check.isValid) {
+      setErrorMsg(check.error || "Validation failed.");
+      return;
     }
 
     setErrorMsg("");
@@ -241,9 +315,11 @@ export default function TransformPage() {
       setStage("Conversion complete");
       setProgress(100);
 
-      const downloadName = selectedFile ? selectedFile.name.split(".")[0] + "_converted.pdf" : activeTab === "url" ? "webpage_converted.pdf" : "text_converted.pdf";
-      const sizeStr = selectedFile ? `${(selectedFile.size * 0.95 / 1024 / 1024).toFixed(2)} MB` : "0.01 MB";
-      const displaySource = selectedFile ? selectedFile.name : activeTab === "url" ? urlInput : "Raw Text";
+      const activeFile = getActiveFile();
+
+      const downloadName = activeFile ? activeFile.name.split(".")[0] + "_converted.pdf" : activeTab === "url" ? "webpage_converted.pdf" : "text_converted.pdf";
+      const sizeStr = activeFile ? `${(activeFile.size * 0.95 / 1024 / 1024).toFixed(2)} MB` : "0.01 MB";
+      const displaySource = activeFile ? activeFile.name : activeTab === "url" ? urlInput : "Raw Text";
 
       setOutputPreview(`### File Conversion Complete!\n\nYour source **${displaySource}** has been successfully converted into target format preset **${conversionPreset}**.\n\n- **Target File:** ${downloadName}\n- **Output Size:** ${sizeStr}\n\nClick the download link below to save your converted output.`);
 
@@ -323,7 +399,7 @@ export default function TransformPage() {
         e.preventDefault();
         if (showShortcutsModal) {
           setShowShortcutsModal(false);
-          triggerToast("Shortcuts Modal Closed");
+          triggerToast("Shortcuts Guide Modal Closed");
         } else {
           resetForm();
           triggerToast("Transformation Reset");
@@ -355,7 +431,7 @@ export default function TransformPage() {
         }
         else if (e.key.toLowerCase() === "r") {
           e.preventDefault();
-          setActiveTab("text");
+          handleTabChange("text");
           triggerToast("Switched to Raw Text Input");
         }
         else if (e.key.toLowerCase() === "d") {
@@ -386,35 +462,40 @@ export default function TransformPage() {
       if (e.altKey) {
         if (e.key === "1") {
           e.preventDefault();
-          setActiveTab("documents");
+          handleTabChange("documents");
           triggerToast("Selected Documents Tab");
         } else if (e.key === "2") {
           e.preventDefault();
-          setActiveTab("images");
+          handleTabChange("images");
           triggerToast("Selected Images Tab");
         } else if (e.key === "3") {
           e.preventDefault();
-          setActiveTab("ocr");
+          handleTabChange("ocr");
           triggerToast("Selected OCR Scanner");
         } else if (e.key === "4") {
           e.preventDefault();
-          setActiveTab("audio");
+          handleTabChange("audio");
           triggerToast("Selected Audio Transcribe");
         } else if (e.key === "5") {
           e.preventDefault();
-          setActiveTab("video");
+          handleTabChange("video");
           triggerToast("Selected Video Engine");
         } else if (e.key === "6") {
           e.preventDefault();
-          setPipelineMode(pipelineMode === "transform" ? "convert" : "transform");
-          triggerToast(`Switched pipeline to: ${pipelineMode === "transform" ? "File Conversion" : "AI Transformation"}`);
+          const nextMode = pipelineMode === "transform" ? "convert" : "transform";
+          setPipelineMode(nextMode);
+          setErrorMsg("");
+          setStatus("idle");
+          setProgress(0);
+          setOutputPreview("");
+          triggerToast(`Switched pipeline to: ${nextMode === "transform" ? "AI Transformation" : "File Conversion"}`);
         }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [inputText, urlInput, selectedFile, selectedFileBase64, fileContent, targetFormat, selectedModel, conversionPreset, pipelineMode, outputPreview, showShortcutsModal]);
+  }, [rawText, urlInput, docFile, imgFiles, ocrFile, audioFile, videoFile, targetFormat, selectedModel, conversionPreset, pipelineMode, outputPreview, showShortcutsModal]);
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto relative">
@@ -459,7 +540,7 @@ export default function TransformPage() {
         ].map(tab => (
           <button
             key={tab.id}
-            onClick={() => { setActiveTab(tab.id as any); resetForm(); setSelectedFile(null); setImagePreview(null); }}
+            onClick={() => handleTabChange(tab.id as any)}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border`}
             style={{
               backgroundColor: activeTab === tab.id ? "rgba(147,51,234,0.15)" : "transparent",
@@ -492,8 +573,8 @@ export default function TransformPage() {
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Raw Text Input</span>
                 <textarea
                   rows={6}
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
+                  value={rawText}
+                  onChange={(e) => setRawText(e.target.value)}
                   placeholder="Paste or write text here..."
                   className="w-full p-3 rounded-xl text-xs focus:outline-none border bg-slate-900 text-white"
                   style={{ borderColor: T.border }}
@@ -534,11 +615,11 @@ export default function TransformPage() {
                   className="border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer bg-slate-900/40 hover:border-purple-500/40 transition-all"
                   style={{ borderColor: T.border }}
                 >
-                  {selectedFile ? (
+                  {docFile ? (
                     <div className="space-y-2">
                       <FileText className="h-8 w-8 text-purple-400 mx-auto" />
-                      <p className="text-xs text-white truncate font-bold">{selectedFile.name}</p>
-                      <p className="text-[9px] text-slate-500">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                      <p className="text-xs text-white truncate font-bold">{docFile.name}</p>
+                      <p className="text-[9px] text-slate-500">{(docFile.size / 1024 / 1024).toFixed(2)} MB</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -570,8 +651,8 @@ export default function TransformPage() {
                   {imagePreview ? (
                     <div className="space-y-2">
                       <img src={imagePreview} alt="Preview" className="h-20 max-w-full mx-auto object-contain rounded border border-white/10" />
-                      <p className="text-xs text-white truncate font-bold">{selectedFile?.name}</p>
-                      <p className="text-[9px] text-purple-400">Multiple files supported: {multipleFiles.length || 1} image(s)</p>
+                      <p className="text-xs text-white truncate font-bold">{imgFiles[0]?.name}</p>
+                      <p className="text-[9px] text-purple-400">Multiple files supported: {imgFiles.length} image(s)</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -599,10 +680,10 @@ export default function TransformPage() {
                   className="border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer bg-slate-900/40 hover:border-purple-500/40 transition-all"
                   style={{ borderColor: T.border }}
                 >
-                  {selectedFile ? (
+                  {ocrFile ? (
                     <div className="space-y-2">
                       <FileCheck className="h-8 w-8 text-purple-400 mx-auto" />
-                      <p className="text-xs text-white truncate font-bold">{selectedFile.name}</p>
+                      <p className="text-xs text-white truncate font-bold">{ocrFile.name}</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -646,10 +727,10 @@ export default function TransformPage() {
                   className="border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer bg-slate-900/40 hover:border-purple-500/40 transition-all"
                   style={{ borderColor: T.border }}
                 >
-                  {selectedFile ? (
+                  {audioFile ? (
                     <div className="space-y-2">
                       <Volume2 className="h-8 w-8 text-purple-400 mx-auto" />
-                      <p className="text-xs text-white truncate font-bold">{selectedFile.name}</p>
+                      <p className="text-xs text-white truncate font-bold">{audioFile.name}</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -677,10 +758,10 @@ export default function TransformPage() {
                   className="border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer bg-slate-900/40 hover:border-purple-500/40 transition-all"
                   style={{ borderColor: T.border }}
                 >
-                  {selectedFile ? (
+                  {videoFile ? (
                     <div className="space-y-2">
                       <Video className="h-8 w-8 text-purple-400 mx-auto" />
-                      <p className="text-xs text-white truncate font-bold">{selectedFile.name}</p>
+                      <p className="text-xs text-white truncate font-bold">{videoFile.name}</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -697,7 +778,7 @@ export default function TransformPage() {
             <div className="flex border-t pt-4" style={{ borderColor: T.border }}>
               <button
                 type="button"
-                onClick={() => { setPipelineMode("transform"); resetForm(); }}
+                onClick={() => { setPipelineMode("transform"); setErrorMsg(""); setStatus("idle"); setProgress(0); setOutputPreview(""); }}
                 className="flex-1 text-center py-2 rounded-xl text-xs font-bold transition-all"
                 style={{
                   backgroundColor: pipelineMode === "transform" ? "rgba(168,85,247,0.15)" : "transparent",
@@ -708,7 +789,7 @@ export default function TransformPage() {
               </button>
               <button
                 type="button"
-                onClick={() => { setPipelineMode("convert"); resetForm(); }}
+                onClick={() => { setPipelineMode("convert"); setErrorMsg(""); setStatus("idle"); setProgress(0); setOutputPreview(""); }}
                 className="flex-1 text-center py-2 rounded-xl text-xs font-bold transition-all"
                 style={{
                   backgroundColor: pipelineMode === "convert" ? "rgba(168,85,247,0.15)" : "transparent",
