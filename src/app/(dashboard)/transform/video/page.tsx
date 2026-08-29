@@ -648,12 +648,40 @@ export default function VideoTransformPage() {
       }
     }
   }, []);
-  const readFileAsDataURL = (file: File): Promise<string> => {
+  const uploadVideoMultipart = (file: File, onProgress: (pct: number) => void): Promise<string> => {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target?.result as string || "");
-      reader.onerror = (err) => reject(new Error("Failed to read video file content."));
-      reader.readAsDataURL(file);
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/upload", true);
+      
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          onProgress(pct);
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const res = JSON.parse(xhr.responseText);
+            if (res.success && res.fileUrl) {
+              resolve(res.fileUrl);
+            } else {
+              reject(new Error(res.error || "Upload failed without a file URL."));
+            }
+          } catch (err) {
+            reject(new Error("Failed to parse upload response."));
+          }
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.responseText}`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("Network error during upload."));
+      
+      const formData = new FormData();
+      formData.append("file", file);
+      xhr.send(formData);
     });
   };
 
@@ -722,11 +750,13 @@ export default function VideoTransformPage() {
       const savedOpenaiKey = typeof window !== "undefined" ? localStorage.getItem("openai_api_key") : "";
       const savedCohereKey = typeof window !== "undefined" ? localStorage.getItem("cohere_api_key") : "";
 
-      // 1. READ METADATA & GENERATE PREVIEW
-      setStage("Reading Video Metadata...");
-      setProgress(10);
+      // 1. UPLOAD VIDEO & GENERATE PREVIEW
+      setStage("Uploading Video to Server...");
+      setProgress(5);
 
-      const fileBase64 = await readFileAsDataURL(selectedVideo);
+      const uploadedFileUrl = await uploadVideoMultipart(selectedVideo, (pct) => {
+        setProgress(5 + Math.floor(pct * 0.15)); // scale to 20% max for upload phase
+      });
       await new Promise((r) => setTimeout(r, 600));
 
       const duration = videoRef.current?.duration || 60;
@@ -743,24 +773,20 @@ export default function VideoTransformPage() {
       setProgress(40);
 
       let rawTranscriptText = "";
-      if (selectedVideo.size <= 3.5 * 1024 * 1024) {
-        // Request AI speech transcription from file payload
-        const transcriptPayload = {
-          fileData: fileBase64,
-          fileName: fileDetails?.name || "video_upload.mp4",
-          fileType: fileDetails?.type || "video/mp4",
-          format: "Speech Transcript (Transcribe all spoken dialogues sequentially with timestamp lines)",
-          model: "Gemini Pro",
-          apiKey: savedApiKey || null,
-          openaiKey: savedOpenaiKey || null,
-          cohereKey: savedCohereKey || null,
-        };
+      // Request AI speech transcription from uploaded URL payload
+      const transcriptPayload = {
+        fileUrl: uploadedFileUrl,
+        fileName: fileDetails?.name || "video_upload.mp4",
+        fileType: fileDetails?.type || "video/mp4",
+        format: "Speech Transcript (Transcribe all spoken dialogues sequentially with timestamp lines)",
+        model: "Gemini Pro",
+        apiKey: savedApiKey || null,
+        openaiKey: savedOpenaiKey || null,
+        cohereKey: savedCohereKey || null,
+      };
 
-        const transcriptRes = await ApiClient.postTransform(transcriptPayload);
-        rawTranscriptText = transcriptRes.output || "No speech dialogue was detected in the video track.";
-      } else {
-        rawTranscriptText = `[Speech Transcription bypassed due to server size limits. Transformed output is compiled from visual screen OCR below.]`;
-      }
+      const transcriptRes = await ApiClient.postTransform(transcriptPayload);
+      rawTranscriptText = transcriptRes.output || "No speech dialogue was detected in the video track.";
       setTranscript(rawTranscriptText);
 
       // 3. EXTRACT CANVAS FRAMES AT SPECIFIED INTERVALS

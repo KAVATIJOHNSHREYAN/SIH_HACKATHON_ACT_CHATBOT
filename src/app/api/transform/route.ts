@@ -5,20 +5,25 @@ import { ModelManager } from "@/ai/ModelManager";
 export async function POST(req: NextRequest) {
   try {
     const { 
-      text, fileData, fileName, fileType, format, model, apiKey, openaiKey, cohereKey,
+      text, fileData, fileUrl, fileName, fileType, format, model, apiKey, openaiKey, cohereKey,
       targetFormats, audience, tone, language, detailLevel, communicationObjective, contentStyle 
     } = await req.json();
 
     let extractedText = "";
 
     // 1. CONTENT EXTRACTION PORTAL
-    if (fileData) {
-      // Decode base64 data
-      const commaIndex = fileData.indexOf(",");
-      const base64Content = commaIndex !== -1 ? fileData.slice(commaIndex + 1) : fileData;
-      const fileBuffer = Buffer.from(base64Content, "base64");
+    if (fileData || fileUrl) {
+      let fileBuffer: Buffer | null = null;
+      let base64Content = "";
 
-      if (fileType?.includes("officedocument.wordprocessingml") || fileName?.endsWith(".docx")) {
+      if (fileData) {
+        // Decode base64 data
+        const commaIndex = fileData.indexOf(",");
+        base64Content = commaIndex !== -1 ? fileData.slice(commaIndex + 1) : fileData;
+        fileBuffer = Buffer.from(base64Content, "base64");
+      }
+
+      if (fileBuffer && (fileType?.includes("officedocument.wordprocessingml") || fileName?.endsWith(".docx"))) {
         // Parse DOCX paragraphs, tables, headings using mammoth
         const docxResult = await mammoth.extractRawText({ buffer: fileBuffer });
         extractedText = docxResult.value;
@@ -34,7 +39,8 @@ Extract all selectable text, perform layout analysis, run OCR on images or scann
 Return ONLY the raw extracted document content. Do not summarize or answer queries yet.`;
 
           const filePart = {
-            data: base64Content,
+            data: base64Content || undefined,
+            fileUrl: fileUrl || undefined,
             mimeType: fileType || "application/pdf"
           };
 

@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleAIFileManager } from "@google/generative-ai/server";
 
 interface ChatMessage {
   role: "user" | "model" | "assistant";
@@ -87,7 +88,7 @@ export class ModelManager {
     systemPrompt: string,
     apiKey?: string,
     selectedModel: string = "Gemini Pro",
-    filePart?: { data: string; mimeType: string },
+    filePart?: { data?: string; mimeType: string; fileUrl?: string },
     openaiKey?: string,
     cohereKey?: string
   ): Promise<{ text: string; modelUsed: string }> {
@@ -141,7 +142,7 @@ export class ModelManager {
                 {
                   type: "image_url",
                   image_url: {
-                    url: `data:${filePart.mimeType};base64,${filePart.data}`
+                    url: filePart.fileUrl ? filePart.fileUrl : `data:${filePart.mimeType};base64,${filePart.data}`
                   }
                 }
               ]
@@ -149,7 +150,7 @@ export class ModelManager {
           } else {
             messagesPayload.push({
               role: "user",
-              content: `${prompt}\n\n[File Data (${filePart.mimeType}) attached as Base64]`
+              content: `${prompt}\n\n[File Data (${filePart.mimeType}) attached ${filePart.fileUrl ? "from " + filePart.fileUrl : "as Base64"}]`
             });
           }
         } else {
@@ -193,12 +194,29 @@ export class ModelManager {
           });
 
           if (filePart) {
-            const filePartPayload = {
-              inlineData: {
-                data: filePart.data,
-                mimeType: filePart.mimeType
-              }
-            };
+            let filePartPayload: any;
+            
+            if (filePart.fileUrl) {
+              const fileManager = new GoogleAIFileManager(activeKey);
+              const uploadResponse = await fileManager.uploadFile(filePart.fileUrl, {
+                mimeType: filePart.mimeType,
+                displayName: `ACT_Upload_${Date.now()}`
+              });
+              
+              filePartPayload = {
+                fileData: {
+                  fileUri: uploadResponse.file.uri,
+                  mimeType: uploadResponse.file.mimeType
+                }
+              };
+            } else if (filePart.data) {
+              filePartPayload = {
+                inlineData: {
+                  data: filePart.data,
+                  mimeType: filePart.mimeType
+                }
+              };
+            }
             const res = await aiModel.generateContent([prompt, filePartPayload]);
             return res.response.text();
           } else {
