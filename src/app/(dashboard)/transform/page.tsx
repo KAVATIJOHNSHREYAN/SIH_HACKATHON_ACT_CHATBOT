@@ -474,7 +474,8 @@ export default function TransformPage() {
         a.click();
       }
       else if (format === "PPTX" || format === "PPT") {
-        const pres = new pptxgen();
+        const PptxGenJS = typeof pptxgen === 'function' ? pptxgen : (pptxgen as any).default;
+        const pres = new PptxGenJS();
         const slide = pres.addSlide();
         slide.addText(outputPreview.substring(0, 500) + (outputPreview.length > 500 ? "..." : ""), { x: 0.5, y: 0.5, w: "90%", h: "90%", fontSize: 14 });
         await pres.writeFile({ fileName: filename });

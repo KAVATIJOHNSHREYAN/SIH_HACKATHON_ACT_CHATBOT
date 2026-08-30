@@ -95,7 +95,8 @@ export function OutputPanel({ output, setOutput, T, placeholder = "AI generation
         a.click();
       }
       else if (downloadFormat === "pptx") {
-        const pres = new pptxgen();
+        const PptxGenJS = typeof pptxgen === 'function' ? pptxgen : (pptxgen as any).default;
+        const pres = new PptxGenJS();
         const slide = pres.addSlide();
         slide.addText(output.substring(0, 1000) + (output.length > 1000 ? "..." : ""), { x: 0.5, y: 0.5, w: "90%", h: "90%", align: "left", valign: "top", fontSize: 12 });
         pres.writeFile({ fileName: `${fileName}.pptx` });
