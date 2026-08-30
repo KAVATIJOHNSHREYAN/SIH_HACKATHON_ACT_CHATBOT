@@ -197,7 +197,7 @@ export class ModelManager {
     systemPrompt: string,
     apiKey?: string,
     selectedModel: string = "Gemini Pro",
-    filePart?: { data?: string; mimeType: string; fileUrl?: string },
+    filePart?: { data?: string; mimeType: string; fileUrl?: string; fileUri?: string },
     openaiKey?: string,
     cohereKey?: string,
     zaiKey?: string
