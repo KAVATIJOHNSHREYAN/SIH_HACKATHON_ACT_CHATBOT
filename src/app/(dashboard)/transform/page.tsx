@@ -456,8 +456,17 @@ export default function TransformPage() {
       
       if (format === "PDF") {
         const doc = new jsPDF();
-        const splitText = doc.splitTextToSize(outputPreview, 180);
-        doc.text(splitText, 15, 20);
+        doc.setFontSize(12);
+        const lines = doc.splitTextToSize(outputPreview, 180);
+        let cursorY = 15;
+        lines.forEach((line: string) => {
+          if (cursorY > 280) {
+            doc.addPage();
+            cursorY = 15;
+          }
+          doc.text(line, 15, cursorY);
+          cursorY += 7;
+        });
         doc.save(filename);
       } 
       else if (format === "DOCX" || format === "DOC") {
@@ -476,8 +485,15 @@ export default function TransformPage() {
       else if (format === "PPTX" || format === "PPT") {
         const PptxGenJS = typeof pptxgen === 'function' ? pptxgen : (pptxgen as any).default;
         const pres = new PptxGenJS();
-        const slide = pres.addSlide();
-        slide.addText(outputPreview.substring(0, 500) + (outputPreview.length > 500 ? "..." : ""), { x: 0.5, y: 0.5, w: "90%", h: "90%", fontSize: 14 });
+        
+        // Split text into chunks of ~800 characters to fit on slides
+        const chunks = outputPreview.match(/[\s\S]{1,800}(?=\s|$)/g) || [outputPreview];
+        
+        chunks.forEach(chunk => {
+          const slide = pres.addSlide();
+          slide.addText(chunk, { x: 0.5, y: 0.5, w: "90%", h: "90%", fontSize: 14, align: "left", valign: "top" });
+        });
+        
         await pres.writeFile({ fileName: filename });
       }
       else if (format === "XLSX" || format === "XLS") {

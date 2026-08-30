@@ -97,8 +97,13 @@ export function OutputPanel({ output, setOutput, T, placeholder = "AI generation
       else if (downloadFormat === "pptx") {
         const PptxGenJS = typeof pptxgen === 'function' ? pptxgen : (pptxgen as any).default;
         const pres = new PptxGenJS();
-        const slide = pres.addSlide();
-        slide.addText(output.substring(0, 1000) + (output.length > 1000 ? "..." : ""), { x: 0.5, y: 0.5, w: "90%", h: "90%", align: "left", valign: "top", fontSize: 12 });
+        
+        const chunks = output.match(/[\s\S]{1,800}(?=\s|$)/g) || [output];
+        chunks.forEach(chunk => {
+          const slide = pres.addSlide();
+          slide.addText(chunk, { x: 0.5, y: 0.5, w: "90%", h: "90%", align: "left", valign: "top", fontSize: 12 });
+        });
+        
         pres.writeFile({ fileName: `${fileName}.pptx` });
       }
       else if (downloadFormat === "zip") {
