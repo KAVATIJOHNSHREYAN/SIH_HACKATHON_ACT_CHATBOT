@@ -323,15 +323,13 @@ export default function TransformPage() {
           
           const { uploadUrl } = await uploadInitRes.json();
           
-          setStage("Uploading large file directly to Google servers...");
+          setStage("Uploading large file securely...");
           setProgress(35);
           
-          const uploadRes = await fetch(uploadUrl, {
+          // Use our Edge function proxy to bypass CORS and Vercel payload limits
+          const proxyUrl = `/api/gemini/proxy?url=${encodeURIComponent(uploadUrl)}`;
+          const uploadRes = await fetch(proxyUrl, {
             method: "POST",
-            headers: {
-              "X-Goog-Upload-Command": "upload, finalize",
-              "X-Goog-Upload-Offset": "0"
-            },
             body: activeFile
           });
           
