@@ -98,13 +98,13 @@ export class ModelManager {
         },
         body: JSON.stringify({
           message: filePart ? `${prompt}\n\n[Attached document extraction processed by system]` : prompt,
-          model: "command-r-plus",
+          model: "command-a-plus-05-2026",
           preamble: systemPrompt
         })
       });
       const data = await this.safeParseJson(res);
       if (data.text) {
-        return { text: data.text, modelUsed: "Command R+ (Cohere)" };
+        return { text: data.text, modelUsed: "Command A+ (Cohere)" };
       }
       throw new Error(data.message || "Cohere chat generation failed.");
     }, "Cohere Command A+");
@@ -340,14 +340,14 @@ export class ModelManager {
         },
         body: JSON.stringify({
           message: userMessage,
-          model: "command-r-plus",
+          model: "command-a-plus-05-2026",
           preamble: systemPrompt,
           chat_history: cohereHistory
         })
       });
       const data = await this.safeParseJson(res);
       if (data.text) {
-        return { text: data.text, modelUsed: "Command R+ (Cohere)" };
+        return { text: data.text, modelUsed: "Command A+ (Cohere)" };
       }
       throw new Error(data.message || "Cohere chat failed.");
     });
