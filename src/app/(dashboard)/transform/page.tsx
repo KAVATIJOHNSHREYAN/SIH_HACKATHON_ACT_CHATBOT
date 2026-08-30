@@ -293,18 +293,76 @@ export default function TransformPage() {
         cohereKey: savedCohereKey || null
       };
 
-      const payload = activeTab === "text"
-        ? { text: rawText, ...basePayload }
-        : activeTab === "url"
-        ? { text: `Extract content and transform from URL: ${urlInput}`, ...basePayload }
-        : {
+      let payload: any = {};
+      
+      if (activeTab === "text") {
+        payload = { text: rawText, ...basePayload };
+      } else if (activeTab === "url") {
+        payload = { text: `Extract content and transform from URL: ${urlInput}`, ...basePayload };
+      } else {
+        if (activeFile && activeFile.size > 2 * 1024 * 1024) {
+          // File is > 2MB. Upload directly to Gemini to bypass Vercel 4.5MB limit.
+          setStage("Initializing direct secure upload...");
+          setProgress(25);
+          
+          const uploadInitRes = await fetch("/api/gemini/upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fileName: activeFile.name,
+              mimeType: activeFile.type,
+              byteSize: activeFile.size,
+              apiKey: savedApiKey || null
+            })
+          });
+          
+          if (!uploadInitRes.ok) {
+            const errData = await uploadInitRes.json();
+            throw new Error(`Direct upload init failed: ${errData.error || uploadInitRes.status}`);
+          }
+          
+          const { uploadUrl } = await uploadInitRes.json();
+          
+          setStage("Uploading large file directly to Google servers...");
+          setProgress(35);
+          
+          const uploadRes = await fetch(uploadUrl, {
+            method: "POST",
+            headers: {
+              "X-Goog-Upload-Command": "upload, finalize",
+              "X-Goog-Upload-Offset": "0"
+            },
+            body: activeFile
+          });
+          
+          if (!uploadRes.ok) {
+            throw new Error(`Direct upload failed: ${uploadRes.status}`);
+          }
+          
+          const uploadData = await uploadRes.json();
+          const fileUri = uploadData.file?.uri;
+          
+          if (!fileUri) {
+            throw new Error("Did not receive fileUri from direct upload.");
+          }
+          
+          payload = {
+            fileUri: fileUri,
+            fileName: activeFile.name,
+            fileType: activeFile.type,
+            ...basePayload
+          };
+        } else {
+          // Smaller files use base64
+          payload = {
             fileData: selectedFileBase64 || undefined,
             text: fileContent || undefined,
             fileName: activeFile?.name,
             fileType: activeFile?.type,
             ...basePayload
           };
-
+        }
+      }
       const startTime = Date.now();
       const data = await ApiClient.streamTransform(payload, (chunk) => {
         if (chunk.stage) setStage(chunk.stage);

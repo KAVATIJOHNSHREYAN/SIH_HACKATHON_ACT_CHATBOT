@@ -230,7 +230,14 @@ export class ModelManager {
       const modelsToTry = this.getGeminiModelsToTry(selectedModel);
       let resolvedFilePartPayload: any = null;
       if (filePart) {
-        if (filePart.fileUrl) {
+        if (filePart.fileUri) {
+          resolvedFilePartPayload = {
+            fileData: {
+              fileUri: filePart.fileUri,
+              mimeType: filePart.mimeType
+            }
+          };
+        } else if (filePart.fileUrl) {
           let uploaded = false;
           for (let keyIdx = 0; keyIdx < availableKeys.length; keyIdx++) {
             try {

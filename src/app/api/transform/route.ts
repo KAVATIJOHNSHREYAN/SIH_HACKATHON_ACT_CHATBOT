@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       try {
         console.time(`Parse_Input_${requestId}`);
         const { 
-          text, fileData, fileUrl, fileName, fileType, format, model, apiKey, openaiKey, cohereKey,
+          text, fileData, fileUri, fileUrl, fileName, fileType, format, model, apiKey, openaiKey, cohereKey,
           targetFormats, audience, tone, language, detailLevel, communicationObjective, contentStyle 
         } = await req.json();
 
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
         console.log(`[${requestId}] 5. Content extraction started`);
         sendData({ type: "progress", stage: "Extracting content...", progress: 20 });
         
-        if (fileData || fileUrl) {
+        if (fileData || fileUrl || fileUri) {
           let fileBuffer: Buffer | null = null;
           let base64Content = "";
 
@@ -71,6 +71,7 @@ Return ONLY the raw extracted document content. Do not summarize or answer queri
               const filePart = {
                 data: base64Content || undefined,
                 fileUrl: fileUrl || undefined,
+                fileUri: fileUri || undefined,
                 mimeType: fileType || "application/pdf"
               };
 
