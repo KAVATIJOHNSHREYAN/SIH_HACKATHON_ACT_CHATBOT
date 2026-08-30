@@ -47,7 +47,7 @@ export default function UrlTransformPage() {
       const payload = {
         text: urlInput, // The backend handles URLs as text input to the URL scraper
         format: targetFormat,
-        model: "Gemini Pro",
+        model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro",
         apiKey: savedApiKey || null,
         openaiKey: savedOpenaiKey || null,
         cohereKey: savedCohereKey || null,

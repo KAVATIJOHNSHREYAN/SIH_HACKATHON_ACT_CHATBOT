@@ -73,7 +73,7 @@ export default function ImagesTransformPage() {
         fileName: selectedFile.name,
         fileType: selectedFile.type,
         format: targetFormat,
-        model: "Gemini Pro",
+        model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro",
         apiKey: savedApiKey || null,
         openaiKey: savedOpenaiKey || null,
         cohereKey: savedCohereKey || null,

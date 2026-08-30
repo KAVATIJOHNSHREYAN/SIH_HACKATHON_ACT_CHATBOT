@@ -65,28 +65,133 @@ export class ModelManager {
     throw new Error("Max retries exceeded.");
   }
 
-  /**
-   * Fallback resolution logic for Gemini model selection.
-   */
-  private static getGeminiModel(selectedModel: string, customApiKey?: string): any {
-    const activeKey = customApiKey || process.env.GEMINI_API_KEY;
-    if (!activeKey) {
-      throw new Error("No Gemini API key supplied.");
-    }
-    const genAI = new GoogleGenerativeAI(activeKey);
-    
-    // Route all traffic to Flash because Free Tier API key has 0 quota for Pro models
+  private static getGeminiModelsToTry(selectedModel: string): string[] {
     let primaryModel = "gemini-3.5-flash";
-
-    return { genAI, primaryModel };
+    if (selectedModel === "Gemini Pro" || selectedModel === "gemini-2.5-pro") {
+      primaryModel = "gemini-2.5-pro";
+    }
+    return [primaryModel, ...this.geminiModels.filter(m => m !== primaryModel)];
   }
 
-  /**
-   * Safe content generation with fallback and retries.
-   */
-  /**
-   * Safe content generation with fallback and retries.
-   */
+  private static parseKeys(customKey?: string): string[] {
+    const keys: string[] = [];
+    if (customKey) {
+      customKey.split(',').map(k => k.trim()).filter(k => k).forEach(k => keys.push(k));
+    }
+    if (process.env.GEMINI_API_KEY) {
+      process.env.GEMINI_API_KEY.split(',').map(k => k.trim()).filter(k => k).forEach(k => {
+        if (!keys.includes(k)) keys.push(k);
+      });
+    }
+    return keys;
+  }
+
+  // ---- PROVIDER EXECUTORS ----
+
+  private static async executeCohereContent(prompt: string, systemPrompt: string, cohereKey: string, filePart?: any): Promise<{ text: string; modelUsed: string }> {
+    return this.executeWithRetry(async () => {
+      const res = await fetch("https://api.cohere.ai/v1/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${cohereKey}`
+        },
+        body: JSON.stringify({
+          message: filePart ? `${prompt}\n\n[Attached document extraction processed by system]` : prompt,
+          model: "command-a-plus",
+          preamble: systemPrompt
+        })
+      });
+      const data = await this.safeParseJson(res);
+      if (data.text) {
+        return { text: data.text, modelUsed: "Command A+ (Cohere)" };
+      }
+      throw new Error(data.message || "Cohere chat generation failed.");
+    }, "Cohere Command A+");
+  }
+
+  private static async executeOpenAIContent(prompt: string, systemPrompt: string, openAIKey: string, filePart?: any): Promise<{ text: string; modelUsed: string }> {
+    return this.executeWithRetry(async () => {
+      let messagesPayload: any[] = [{ role: "system", content: systemPrompt }];
+
+      if (filePart) {
+        const isImage = filePart.mimeType.startsWith("image/");
+        if (isImage) {
+          messagesPayload.push({
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              {
+                type: "image_url",
+                image_url: {
+                  url: filePart.fileUrl ? filePart.fileUrl : `data:${filePart.mimeType};base64,${filePart.data}`
+                }
+              }
+            ]
+          });
+        } else {
+          messagesPayload.push({
+            role: "user",
+            content: `${prompt}\n\n[File Data (${filePart.mimeType}) attached ${filePart.fileUrl ? "from " + filePart.fileUrl : "as Base64"}]`
+          });
+        }
+      } else {
+        messagesPayload.push({ role: "user", content: prompt });
+      }
+
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${openAIKey}`
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: messagesPayload,
+          temperature: 0.7
+        })
+      });
+      const data = await this.safeParseJson(res);
+      if (data.choices && data.choices.length > 0) {
+        return { text: data.choices[0].message.content, modelUsed: "GPT-4o (OpenAI)" };
+      }
+      throw new Error(data.error?.message || "OpenAI generation failed.");
+    }, "OpenAI GPT-4o-mini");
+  }
+
+  private static async executeZaiContent(prompt: string, systemPrompt: string, zaiKey: string, filePart?: any): Promise<{ text: string; modelUsed: string }> {
+    return this.executeWithRetry(async () => {
+      let messagesPayload: any[] = [{ role: "system", content: systemPrompt }];
+
+      if (filePart) {
+        messagesPayload.push({
+          role: "user",
+          content: `${prompt}\n\n[File Data (${filePart.mimeType}) attached ${filePart.fileUrl ? "from " + filePart.fileUrl : "as Base64"}]`
+        });
+      } else {
+        messagesPayload.push({ role: "user", content: prompt });
+      }
+
+      const res = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${zaiKey}`
+        },
+        body: JSON.stringify({
+          model: "glm-4-plus",
+          messages: messagesPayload,
+          temperature: 0.7
+        })
+      });
+      const data = await this.safeParseJson(res);
+      if (data.choices && data.choices.length > 0) {
+        return { text: data.choices[0].message.content, modelUsed: "GLM-4-Plus (Z.ai)" };
+      }
+      throw new Error(data.error?.message || "Z.ai generation failed.");
+    }, "Z.ai GLM-4-Plus");
+  }
+
   public static async generateContent(
     prompt: string,
     systemPrompt: string,
@@ -94,293 +199,324 @@ export class ModelManager {
     selectedModel: string = "Gemini Pro",
     filePart?: { data?: string; mimeType: string; fileUrl?: string },
     openaiKey?: string,
-    cohereKey?: string
+    cohereKey?: string,
+    zaiKey?: string
   ): Promise<{ text: string; modelUsed: string }> {
     const activeKey = apiKey || process.env.GEMINI_API_KEY;
     const openAIKey = openaiKey || process.env.OPENAI_API_KEY;
     const resolvedCohereKey = cohereKey || process.env.COHERE_API_KEY;
+    const resolvedZaiKey = zaiKey || process.env.Z_AI_API_KEY;
 
-    if (selectedModel === "Cohere") {
-      if (!resolvedCohereKey) {
-        throw new Error("No Cohere API key supplied in Settings.");
-      }
-      return this.executeWithRetry(async () => {
-        const res = await fetch("https://api.cohere.ai/v1/chat", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${resolvedCohereKey}`
-          },
-          body: JSON.stringify({
-            message: filePart ? `${prompt}\n\n[Attached document extraction processed by system]` : prompt,
-            model: "command-a-plus",
-            preamble: systemPrompt
-          })
-        });
-        const data = await this.safeParseJson(res);
-        if (data.text) {
-          return { text: data.text, modelUsed: "Command A+ (Cohere)" };
-        }
-        throw new Error(data.message || "Cohere chat generation failed.");
-      }, "Cohere Command A+");
+    let lastError: any = null;
+
+    if (selectedModel.includes("Z.ai")) {
+      if (!resolvedZaiKey) throw new Error("No Z.ai API key supplied in Settings.");
+      return this.executeZaiContent(prompt, systemPrompt, resolvedZaiKey, filePart);
     }
 
-    const useOpenAI = selectedModel === "GPT-4o";
+    if (selectedModel.includes("Cohere")) {
+      if (!resolvedCohereKey) throw new Error("No Cohere API key supplied in Settings.");
+      return this.executeCohereContent(prompt, systemPrompt, resolvedCohereKey, filePart);
+    }
 
-    if (useOpenAI) {
-      if (!openAIKey) {
-        throw new Error("No OpenAI API key supplied in Settings.");
-      }
-      return this.executeWithRetry(async () => {
-        let messagesPayload: any[] = [
-          { role: "system", content: systemPrompt }
-        ];
-
-        if (filePart) {
-          const isImage = filePart.mimeType.startsWith("image/");
-          if (isImage) {
-            messagesPayload.push({
-              role: "user",
-              content: [
-                { type: "text", text: prompt },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: filePart.fileUrl ? filePart.fileUrl : `data:${filePart.mimeType};base64,${filePart.data}`
-                  }
-                }
-              ]
-            });
-          } else {
-            messagesPayload.push({
-              role: "user",
-              content: `${prompt}\n\n[File Data (${filePart.mimeType}) attached ${filePart.fileUrl ? "from " + filePart.fileUrl : "as Base64"}]`
-            });
-          }
-        } else {
-          messagesPayload.push({ role: "user", content: prompt });
-        }
-
-        const res = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${openAIKey}`
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: messagesPayload,
-            temperature: 0.7
-          })
-        });
-        const data = await this.safeParseJson(res);
-        if (data.choices && data.choices.length > 0) {
-          return { text: data.choices[0].message.content, modelUsed: "GPT-4o (OpenAI)" };
-        }
-        throw new Error(data.error?.message || "OpenAI generation failed.");
-      }, "OpenAI GPT-4o-mini");
+    if (selectedModel.includes("GPT")) {
+      if (!openAIKey) throw new Error("No OpenAI API key supplied in Settings.");
+      return this.executeOpenAIContent(prompt, systemPrompt, openAIKey, filePart);
     }
 
     // Gemini Path
-    if (!activeKey) {
-      throw new Error("No Gemini API key supplied in Settings.");
-    }
-    const { genAI, primaryModel } = this.getGeminiModel(selectedModel, activeKey);
-    const modelsToTry = [primaryModel, ...this.geminiModels.filter(m => m !== primaryModel)];
-    let lastError: any = null;
-
-    let resolvedFilePartPayload: any = null;
-    if (filePart) {
-      if (filePart.fileUrl) {
-        try {
-          const fileManager = new GoogleAIFileManager(activeKey);
-          const uploadResponse = await fileManager.uploadFile(filePart.fileUrl, {
-            mimeType: filePart.mimeType,
-            displayName: `ACT_Upload_${Date.now()}`
-          });
+    const availableKeys = this.parseKeys(activeKey);
+    if (availableKeys.length > 0) {
+      const modelsToTry = this.getGeminiModelsToTry(selectedModel);
+      let resolvedFilePartPayload: any = null;
+      if (filePart) {
+        if (filePart.fileUrl) {
+          let uploaded = false;
+          for (let keyIdx = 0; keyIdx < availableKeys.length; keyIdx++) {
+            try {
+              const fileManager = new GoogleAIFileManager(availableKeys[keyIdx]);
+              const uploadResponse = await fileManager.uploadFile(filePart.fileUrl, {
+                mimeType: filePart.mimeType,
+                displayName: `ACT_Upload_${Date.now()}`
+              });
+              resolvedFilePartPayload = {
+                fileData: {
+                  fileUri: uploadResponse.file.uri,
+                  mimeType: uploadResponse.file.mimeType
+                }
+              };
+              uploaded = true;
+              break;
+            } catch (uploadErr) {
+              console.warn(`[ACT_LOG] File Upload failed on key index ${keyIdx}`, uploadErr);
+            }
+          }
+          if (!uploaded) throw new Error("Failed to upload file to Gemini File API across all keys.");
+        } else if (filePart.data) {
           resolvedFilePartPayload = {
-            fileData: {
-              fileUri: uploadResponse.file.uri,
-              mimeType: uploadResponse.file.mimeType
+            inlineData: {
+              data: filePart.data,
+              mimeType: filePart.mimeType
             }
           };
-        } catch (uploadErr) {
-          console.error("Gemini File API Upload Error:", uploadErr);
-          throw uploadErr;
         }
-      } else if (filePart.data) {
-        resolvedFilePartPayload = {
-          inlineData: {
-            data: filePart.data,
-            mimeType: filePart.mimeType
-          }
-        };
       }
+
+      for (const modelName of modelsToTry) {
+        for (let keyIdx = 0; keyIdx < availableKeys.length; keyIdx++) {
+          const currentKey = availableKeys[keyIdx];
+          const genAI = new GoogleGenerativeAI(currentKey);
+          try {
+            const result = await this.executeWithRetry(async () => {
+              const aiModel = genAI.getGenerativeModel({ model: modelName, systemInstruction: systemPrompt });
+              if (resolvedFilePartPayload) {
+                const res = await aiModel.generateContent([prompt, resolvedFilePartPayload]);
+                return res.response.text();
+              } else {
+                const res = await aiModel.generateContent(prompt);
+                return res.response.text();
+              }
+            }, `Gemini (${modelName}) [Key ${keyIdx}]`);
+            
+            if (result) return { text: result, modelUsed: modelName };
+          } catch (err: any) {
+            console.error(`[ModelManager] Model ${modelName} on key index ${keyIdx} failed: ${err.message}. Rotating...`);
+            lastError = err;
+          }
+        }
+      }
+    } else {
+      lastError = new Error("No Gemini API key supplied in Settings.");
     }
 
-    for (const modelName of modelsToTry) {
+    // OpenAI Fallback if Gemini fails
+    if (openAIKey) {
+      console.warn("[ACT_LOG] Gemini failed. Attempting OpenAI Fallback...");
       try {
-        const result = await this.executeWithRetry(async () => {
-          const aiModel = genAI.getGenerativeModel({
-            model: modelName,
-            systemInstruction: systemPrompt
-          });
-
-          if (resolvedFilePartPayload) {
-            const res = await aiModel.generateContent([prompt, resolvedFilePartPayload]);
-            return res.response.text();
-          } else {
-            const res = await aiModel.generateContent(prompt);
-            return res.response.text();
-          }
-        }, `Gemini (${modelName})`);
-        if (result) {
-          return { text: result, modelUsed: modelName };
-        }
+        const result = await this.executeOpenAIContent(prompt, systemPrompt, openAIKey, filePart);
+        result.modelUsed += " (Fallback)";
+        return result;
       } catch (err: any) {
-        console.error(`[ModelManager] Model ${modelName} failed: ${err.message}. Trying next fallback...`);
+        console.error(`[ModelManager] OpenAI Fallback failed: ${err.message}`);
         lastError = err;
       }
     }
 
-    // Ultimate Failover: If all Gemini models fail due to quota/rate-limits (429), provide a graceful Sandbox response
-    if (lastError && (lastError.message?.includes("429") || lastError.status === 429 || lastError.message?.includes("quota"))) {
-      console.warn("[ACT_LOG] AI API Quota completely exhausted. Falling back to Sandbox Mode to preserve application stability.");
-      return {
-        text: `### [Sandbox Fallback Mode Activated]\n\nYour AI provider quota has been completely exhausted (429 Rate Limit/Quota Exceeded).\n\nTo prevent the application from crashing, ACT has activated Sandbox Mode. Please upgrade your API billing or provide a new key in Settings.\n\n**Processed Content Preview:**\n\n${prompt.substring(0, 500)}...`,
-        modelUsed: "Sandbox Mock (Quota Exhausted)"
-      };
+    // Cohere Fallback if OpenAI fails
+    if (resolvedCohereKey) {
+      console.warn("[ACT_LOG] OpenAI Fallback failed. Attempting Cohere Fallback...");
+      try {
+        const result = await this.executeCohereContent(prompt, systemPrompt, resolvedCohereKey, filePart);
+        result.modelUsed += " (Fallback)";
+        return result;
+      } catch (err: any) {
+        console.error(`[ModelManager] Cohere Fallback failed: ${err.message}`);
+        lastError = err;
+      }
     }
 
-    throw lastError || new Error("All Gemini models failed to respond.");
+    console.error("[ACT_LOG] All AI providers (Gemini/OpenAI/Cohere) failed to respond.");
+    throw new Error("AI service is temporarily unavailable. Please try again later or configure another API key.");
   }
+
+
 
   /**
    * Safe chat session runner with fallback and retries.
    */
+  private static async executeCohereChat(messages: any[], systemPrompt: string, cohereKey: string): Promise<{ text: string; modelUsed: string }> {
+    const userMessage = messages[messages.length - 1]?.text || "";
+    const history = messages.slice(0, -1);
+    return this.executeWithRetry(async () => {
+      const cohereHistory = history.map(m => ({
+        role: m.role === "user" ? "USER" : "CHATBOT",
+        message: m.text
+      }));
+      const res = await fetch("https://api.cohere.ai/v1/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${cohereKey}`
+        },
+        body: JSON.stringify({
+          message: userMessage,
+          model: "command-a-plus",
+          preamble: systemPrompt,
+          chat_history: cohereHistory
+        })
+      });
+      const data = await this.safeParseJson(res);
+      if (data.text) {
+        return { text: data.text, modelUsed: "Command A+ (Cohere)" };
+      }
+      throw new Error(data.message || "Cohere chat failed.");
+    });
+  }
+
+  private static async executeOpenAIChat(messages: any[], systemPrompt: string, openAIKey: string): Promise<{ text: string; modelUsed: string }> {
+    const userMessage = messages[messages.length - 1]?.text || "";
+    const history = messages.slice(0, -1);
+    return this.executeWithRetry(async () => {
+      const openAIMessages = [
+        { role: "system", content: systemPrompt },
+        ...history.map(m => ({
+          role: m.role === "user" ? "user" : "assistant",
+          content: m.text
+        })),
+        { role: "user", content: userMessage }
+      ];
+
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${openAIKey}`
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: openAIMessages,
+          temperature: 0.7
+        })
+      });
+      const data = await this.safeParseJson(res);
+      if (data.choices && data.choices.length > 0) {
+        return { text: data.choices[0].message.content, modelUsed: "GPT-4o (OpenAI)" };
+      }
+      throw new Error(data.error?.message || "OpenAI chat failed.");
+    });
+  }
+
+  private static async executeZaiChat(messages: any[], systemPrompt: string, zaiKey: string): Promise<{ text: string; modelUsed: string }> {
+    const userMessage = messages[messages.length - 1]?.text || "";
+    const history = messages.slice(0, -1);
+    return this.executeWithRetry(async () => {
+      const zaiMessages = [
+        { role: "system", content: systemPrompt },
+        ...history.map(m => ({
+          role: m.role === "user" ? "user" : "assistant",
+          content: m.text
+        })),
+        { role: "user", content: userMessage }
+      ];
+
+      const res = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${zaiKey}`
+        },
+        body: JSON.stringify({
+          model: "glm-4-plus",
+          messages: zaiMessages,
+          temperature: 0.7
+        })
+      });
+      const data = await this.safeParseJson(res);
+      if (data.choices && data.choices.length > 0) {
+        return { text: data.choices[0].message.content, modelUsed: "GLM-4-Plus (Z.ai)" };
+      }
+      throw new Error(data.error?.message || "Z.ai chat failed.");
+    });
+  }
+
   public static async generateChatResponse(
-    messages: ChatMessage[],
+    messages: any[],
     systemPrompt: string,
     apiKey?: string,
     selectedModel: string = "Gemini Pro",
     openaiKey?: string,
-    cohereKey?: string
+    cohereKey?: string,
+    zaiKey?: string
   ): Promise<{ text: string; modelUsed: string }> {
-    const activeKey = apiKey || process.env.GEMINI_API_KEY;
     const openAIKey = openaiKey || process.env.OPENAI_API_KEY;
     const resolvedCohereKey = cohereKey || process.env.COHERE_API_KEY;
+    const activeKey = apiKey || process.env.GEMINI_API_KEY;
+    const resolvedZaiKey = zaiKey || process.env.Z_AI_API_KEY;
 
-    if (selectedModel === "Cohere") {
-      if (!resolvedCohereKey) {
-        throw new Error("No Cohere API key supplied in Settings.");
-      }
-      const userMessage = messages[messages.length - 1]?.text || "";
-      const history = messages.slice(0, -1);
-      return this.executeWithRetry(async () => {
-        const cohereHistory = history.map(m => ({
-          role: m.role === "user" ? "USER" : "CHATBOT",
-          message: m.text
-        }));
-        const res = await fetch("https://api.cohere.ai/v1/chat", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${resolvedCohereKey}`
-          },
-          body: JSON.stringify({
-            message: userMessage,
-            model: "command-a-plus",
-            preamble: systemPrompt,
-            chat_history: cohereHistory
-          })
-        });
-        const data = await this.safeParseJson(res);
-        if (data.text) {
-          return { text: data.text, modelUsed: "Command A+ (Cohere)" };
-        }
-        throw new Error(data.message || "Cohere chat failed.");
-      });
-    }
-
-    const useOpenAI = selectedModel === "GPT-4o";
-
-    const userMessage = messages[messages.length - 1]?.text || "";
-    const history = messages.slice(0, -1);
-
-    if (useOpenAI) {
-      if (!openAIKey) {
-        throw new Error("No OpenAI API key supplied in Settings.");
-      }
-      return this.executeWithRetry(async () => {
-        const openAIMessages = [
-          { role: "system", content: systemPrompt },
-          ...history.map(m => ({
-            role: m.role === "user" ? "user" : "assistant",
-            content: m.text
-          })),
-          { role: "user", content: userMessage }
-        ];
-
-        const res = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${openAIKey}`
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: openAIMessages,
-            temperature: 0.7
-          })
-        });
-        const data = await this.safeParseJson(res);
-        if (data.choices && data.choices.length > 0) {
-          return { text: data.choices[0].message.content, modelUsed: "GPT-4o (OpenAI)" };
-        }
-        throw new Error(data.error?.message || "OpenAI chat failed.");
-      });
-    }
-
-    // Gemini Chat Path
-    if (!activeKey) {
-      throw new Error("No Gemini API key supplied in Settings.");
-    }
-    const { genAI, primaryModel } = this.getGeminiModel(selectedModel, activeKey);
-    const modelsToTry = [primaryModel, ...this.geminiModels.filter(m => m !== primaryModel)];
     let lastError: any = null;
 
-    const sanitizedHistory = history.map(m => ({
-      role: m.role === "user" ? "user" : "model",
-      parts: [{ text: m.text }]
-    }));
-    while (sanitizedHistory.length > 0 && sanitizedHistory[0].role !== "user") {
-      sanitizedHistory.shift();
+    if (selectedModel.includes("Z.ai")) {
+      if (!resolvedZaiKey) throw new Error("No Z.ai API key supplied in Settings.");
+      return this.executeZaiChat(messages, systemPrompt, resolvedZaiKey);
     }
 
-    for (const modelName of modelsToTry) {
-      try {
-        const result = await this.executeWithRetry(async () => {
-          const aiModel = genAI.getGenerativeModel({
-            model: modelName,
-            systemInstruction: systemPrompt
-          });
-          const chat = aiModel.startChat({
-            history: sanitizedHistory
-          });
-          const response = await chat.sendMessage([{ text: userMessage }]);
-          return response.response.text();
-        });
-        if (result) {
-          return { text: result, modelUsed: modelName };
+    if (selectedModel.includes("Cohere")) {
+      if (!resolvedCohereKey) throw new Error("No Cohere API key supplied in Settings.");
+      return this.executeCohereChat(messages, systemPrompt, resolvedCohereKey);
+    }
+
+    if (selectedModel.includes("GPT")) {
+      if (!openAIKey) throw new Error("No OpenAI API key supplied in Settings.");
+      return this.executeOpenAIChat(messages, systemPrompt, openAIKey);
+    }
+
+    // Gemini Path
+    const availableKeys = this.parseKeys(activeKey);
+    if (availableKeys.length > 0) {
+      const modelsToTry = this.getGeminiModelsToTry(selectedModel);
+      const geminiHistory = messages.slice(0, -1).map(m => ({
+        role: m.role === "user" ? "user" : "model",
+        parts: [{ text: m.text }]
+      }));
+      const lastUserMessage = messages[messages.length - 1]?.text || "";
+
+      for (const modelName of modelsToTry) {
+        for (let keyIdx = 0; keyIdx < availableKeys.length; keyIdx++) {
+          const currentKey = availableKeys[keyIdx];
+          const genAI = new GoogleGenerativeAI(currentKey);
+          try {
+            const result = await this.executeWithRetry(async () => {
+              const aiModel = genAI.getGenerativeModel({ model: modelName, systemInstruction: systemPrompt });
+              const chat = aiModel.startChat({
+                history: geminiHistory,
+                generationConfig: { maxOutputTokens: 8192 },
+              });
+              const res = await chat.sendMessage(lastUserMessage);
+              return res.response.text();
+            }, `Gemini Chat (${modelName}) [Key ${keyIdx}]`);
+            
+            if (result) return { text: result, modelUsed: modelName };
+          } catch (err: any) {
+            console.error(`[ModelManager] Chat Model ${modelName} on key index ${keyIdx} failed: ${err.message}. Rotating...`);
+            lastError = err;
+          }
         }
+      }
+    } else {
+      lastError = new Error("No Gemini API key supplied in Settings.");
+    }
+
+    // OpenAI Fallback if Gemini fails
+    if (openAIKey) {
+      console.warn("[ACT_LOG] Gemini chat failed. Attempting OpenAI Fallback...");
+      try {
+        const result = await this.executeOpenAIChat(messages, systemPrompt, openAIKey);
+        result.modelUsed += " (Fallback)";
+        return result;
       } catch (err: any) {
-        console.error(`[ModelManager] Chat model ${modelName} failed: ${err.message}. Trying next fallback...`);
+        console.error(`[ModelManager] OpenAI Chat Fallback failed: ${err.message}`);
         lastError = err;
       }
     }
 
-    throw lastError || new Error("All Gemini chat models failed to respond.");
+    // Cohere Fallback if OpenAI fails
+    if (resolvedCohereKey) {
+      console.warn("[ACT_LOG] OpenAI Chat Fallback failed. Attempting Cohere Fallback...");
+      try {
+        const result = await this.executeCohereChat(messages, systemPrompt, resolvedCohereKey);
+        result.modelUsed += " (Fallback)";
+        return result;
+      } catch (err: any) {
+        console.error(`[ModelManager] Cohere Chat Fallback failed: ${err.message}`);
+        lastError = err;
+      }
+    }
+
+    console.error("[ACT_LOG] All AI providers (Gemini/OpenAI/Cohere) failed to respond for chat.");
+    throw new Error("AI service is temporarily unavailable. Please try again later or configure another API key.");
   }
+
+
 
   /**
    * Centralized embedding logic for RAG pipelines.

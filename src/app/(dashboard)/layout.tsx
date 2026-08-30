@@ -38,14 +38,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [activeModel, setActiveModel] = useState("ACT Pro");
+  const [activeModel, setActiveModel] = useState("Gemini Pro");
+
+  useEffect(() => {
+    const savedModel = typeof window !== "undefined" ? localStorage.getItem("act_selected_model") : null;
+    if (savedModel) {
+      setActiveModel(savedModel);
+    } else {
+      localStorage.setItem("act_selected_model", "Gemini Pro");
+    }
+  }, []);
+
+  const handleModelSelect = (model: string) => {
+    setActiveModel(model);
+    localStorage.setItem("act_selected_model", model);
+    setModelSelectorOpen(false);
+  };
   const [notifications, setNotifications] = useState([
     { id: 1, text: "Transformation complete: PDF → MCQ Notes", time: "2m ago" },
     { id: 2, text: "Audio transcription completed successfully",  time: "10m ago" },
     { id: 3, text: "Storage limit reaching 85% soon",            time: "1h ago" },
   ]);
 
-  const models = ["Gemini Pro", "GPT-4o", "Cohere Command A+", "Claude 3.5 Sonnet", "Mistral Large"];
+  const models = ["Gemini Pro", "GPT-4o", "Cohere Command A+", "Z.ai GLM", "Mistral Large"];
 
   const displayName   = user?.name  || "Guest";
   const displayInitials = getInitials(displayName);
@@ -295,7 +310,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   {models.map((m) => (
                     <button
                       key={m}
-                      onClick={() => { setActiveModel(m); setModelSelectorOpen(false); }}
+                      onClick={() => handleModelSelect(m)}
                       className="w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-colors"
                       style={{ color: T.textPrimary }}
                       onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.bgActive; (e.currentTarget as HTMLElement).style.color = T.textActive; }}

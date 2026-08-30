@@ -149,7 +149,7 @@ export default function CodeTransformPage() {
       const transformPayload = {
         text: fileContent,
         format: targetPresetPrompt,
-        model: "Gemini Pro",
+        model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro",
         apiKey: savedApiKey || null,
         openaiKey: savedOpenaiKey || null,
         cohereKey: savedCohereKey || null,

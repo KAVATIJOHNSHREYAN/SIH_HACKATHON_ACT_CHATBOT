@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
             const resolvedCohereKey = cohereKey || process.env.COHERE_API_KEY;
             
             if (!activeKey && !openAIKey && !resolvedCohereKey) {
-              extractedText = `[Sandbox Mock Document Content Extracted from ${fileName}]\n\n- File Type: ${fileType}\n- Mock content: Standard enterprise contract clauses, SLA timelines (Phase 1 rollout set for October 15, APIs finalized by December 1), and section 12.4 governing liabilities.\n- OCR/Audio Transcription: Completed successfully.`;
+              throw new Error("No API keys supplied in Settings or Environment. Please configure an API key.");
             } else {
               sendData({ type: "progress", stage: "Running OCR & Vision Analysis...", progress: 40 });
               
@@ -106,14 +106,7 @@ Return ONLY the raw extracted document content. Do not summarize or answer queri
         const resolvedCohereKey = cohereKey || process.env.COHERE_API_KEY;
 
         if (!activeKey && !openAIKey && !resolvedCohereKey) {
-          const sandboxTransformation = `### [Sandbox Mode Activated]\n\nNo active API Key was detected in your Settings panel or environment.\n\nACT completed transformation using the extracted document text:\n\n**Source Title:** ${fileName || "Text Paste"}\n**Target Format:** ${format}\n\n**Extracted Document Content Context:**\n"""\n${extractedText.slice(0, 300)}...\n"""\n\n*Configure your API key in Settings to activate live generations.*`;
-          console.log(`[${requestId}] 14. Generating final deliverable (Sandbox Mode)`);
-          console.log(`[${requestId}] 15. Sending response to frontend (Sandbox Mode)`);
-          sendData({ type: "success", output: sandboxTransformation, model: "Sandbox", timestamp: new Date().toISOString() });
-          controller.close();
-          console.timeEnd(`ACT_REQUEST_${requestId}`);
-          console.log("========== ACT REQUEST END ==========");
-          return;
+          throw new Error("No API keys configured. AI service is temporarily unavailable. Please try again later or configure another API key.");
         }
 
         const isMultiFormat = targetFormats && Array.isArray(targetFormats) && targetFormats.length > 0;
@@ -135,9 +128,21 @@ Return ONLY the raw extracted document content. Do not summarize or answer queri
         
         // Chunking Logic
         if (extractedText.length > CHUNK_SIZE) {
-          console.log(`[${requestId}] 8. Prompt size: Chunked (Text Length: ${extractedText.length})`);
-          console.log(`[${requestId}] 9. Sending request to Gemini (Chunked processing)`);
-          console.log(`[${requestId}] 10. Waiting for Gemini response...`);
+        console.log(`[${requestId}] 8. Prompt size: Chunked (Text Length: ${extractedText.length})`);
+          
+          let provider = "Gemini";
+          if (model.includes("GPT")) provider = "OpenAI";
+          if (model.includes("Cohere")) provider = "Cohere";
+          if (model.includes("Z.ai")) provider = "Z.ai";
+          console.log("Provider:", provider);
+          console.log("Model:", model);
+          console.log("Gemini Key:", !!process.env.GEMINI_API_KEY);
+          console.log("OpenAI Key:", !!process.env.OPENAI_API_KEY);
+          console.log("Cohere Key:", !!process.env.COHERE_API_KEY);
+          console.log("Z.ai Key:", !!process.env.Z_AI_API_KEY);
+
+          console.log(`[${requestId}] 9. Sending request to ${provider} (Chunked processing)`);
+          console.log(`[${requestId}] 10. Waiting for ${provider} response...`);
           console.time(`AI_Generation_${requestId}`);
           
           const numChunks = Math.ceil(extractedText.length / CHUNK_SIZE);
@@ -168,7 +173,8 @@ ${chunkText}
               model,
               undefined,
               openAIKey || undefined,
-              resolvedCohereKey || undefined
+              resolvedCohereKey || undefined,
+              process.env.Z_AI_API_KEY || undefined
             );
             
             clearInterval(keepAlive);
@@ -197,9 +203,21 @@ ${extractedText}
             sendData({ type: "progress", stage: "Generating AI Transformation...", progress: 75 });
           }, 5000);
 
-          console.log(`[${requestId}] 8. Prompt size:`, prompt.length);
-          console.log(`[${requestId}] 9. Sending request to Gemini`);
-          console.log(`[${requestId}] 10. Waiting for Gemini response...`);
+          console.log(`[${requestId}] 8. Prompt size: Full (Text Length: ${extractedText.length})`);
+
+          let provider = "Gemini";
+          if (model.includes("GPT")) provider = "OpenAI";
+          if (model.includes("Cohere")) provider = "Cohere";
+          if (model.includes("Z.ai")) provider = "Z.ai";
+          console.log("Provider:", provider);
+          console.log("Model:", model);
+          console.log("Gemini Key:", !!process.env.GEMINI_API_KEY);
+          console.log("OpenAI Key:", !!process.env.OPENAI_API_KEY);
+          console.log("Cohere Key:", !!process.env.COHERE_API_KEY);
+          console.log("Z.ai Key:", !!process.env.Z_AI_API_KEY);
+
+          console.log(`[${requestId}] 9. Sending request to ${provider} (Full processing)`);
+          console.log(`[${requestId}] 10. Waiting for ${provider} response...`);
           console.time(`AI_Generation_${requestId}`);
 
           const res = await ModelManager.generateContent(
@@ -209,7 +227,8 @@ ${extractedText}
             model,
             undefined,
             openAIKey || undefined,
-            resolvedCohereKey || undefined
+            resolvedCohereKey || undefined,
+            process.env.Z_AI_API_KEY || undefined
           );
           
           console.log(`[${requestId}] 11. Gemini response received`);

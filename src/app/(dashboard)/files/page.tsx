@@ -186,7 +186,7 @@ export default function AIKnowledgeHub() {
           {
             date: new Date().toISOString().split('T')[0],
             action: "Ingested & Indexed",
-            model: "Gemini Pro",
+            model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro",
             tokens: 380,
             time: "0.8s"
           }
@@ -275,7 +275,7 @@ export default function AIKnowledgeHub() {
       const response = await ApiClient.postChat({
         messages: [{ role: "user", content: `${batchChatQuery}\n\nContext files summary:\n${combinedTexts}` }],
         files: [],
-        model: "Gemini Pro",
+        model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro",
         apiKey: savedApiKey || null,
         openaiKey: savedOpenaiKey || null,
         cohereKey: savedCohereKey || null,
@@ -306,7 +306,7 @@ export default function AIKnowledgeHub() {
       const payload = {
         text: `[File Context] Name: ${file.name}\n${file.aiSummary}`,
         format: systemPrompt,
-        model: "Gemini Pro",
+        model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro",
         apiKey: savedApiKey || null,
         openaiKey: savedOpenaiKey || null,
         cohereKey: savedCohereKey || null,
@@ -320,7 +320,7 @@ export default function AIKnowledgeHub() {
       const historyItem = {
         date: new Date().toISOString().split('T')[0],
         action: actionLabel,
-        model: "Gemini Pro",
+        model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro",
         tokens: 300,
         time: "1.2s"
       };

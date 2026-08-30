@@ -504,7 +504,9 @@ export default function OcrTransformPage() {
               >
                 <option value="Gemini Pro" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>Gemini Pro</option>
                 <option value="GPT-4o" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>GPT-4o</option>
-                <option value="Claude 3.5 Sonnet" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>Claude 3.5 Sonnet</option>
+                <option value="Cohere Command A+" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>Cohere Command A+</option>
+                <option value="Z.ai GLM" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>Z.ai GLM</option>
+                <option value="Mistral Large" style={{ backgroundColor: T.bgCard, color: T.textPrimary }}>Mistral Large</option>
               </select>
             </div>
 

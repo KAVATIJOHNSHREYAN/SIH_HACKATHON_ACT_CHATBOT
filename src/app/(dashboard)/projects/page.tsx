@@ -87,7 +87,7 @@ const DEFAULT_PROJECTS: Project[] = [
     category: "Business",
     tags: ["Legal", "SLA", "Audit"],
     privacy: "Private",
-    model: "Gemini Pro",
+    model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro",
     language: "English",
     date: "2026-08-20",
     owner: "Admin Owner",

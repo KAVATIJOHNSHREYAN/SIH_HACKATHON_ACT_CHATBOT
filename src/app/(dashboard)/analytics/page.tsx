@@ -58,13 +58,13 @@ export default function AnalyticsPage() {
       // If empty, generate pre-populated analytics history so the charts look gorgeous!
       if (historyList.length === 0) {
         historyList = [
-          { id: "job_rag_101", file: "compliance_sla.pdf", action: "Executive Summary", date: "2026-08-28", tokens: 840, status: "Completed", model: "Gemini Pro", latency: "1.4s" },
-          { id: "job_rag_102", file: "meeting_recording.mp3", action: "Audio Transcript", date: "2026-08-27", tokens: 1250, status: "Completed", model: "Gemini Pro", latency: "2.1s" },
+          { id: "job_rag_101", file: "compliance_sla.pdf", action: "Executive Summary", date: "2026-08-28", tokens: 840, status: "Completed", model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro", latency: "1.4s" },
+          { id: "job_rag_102", file: "meeting_recording.mp3", action: "Audio Transcript", date: "2026-08-27", tokens: 1250, status: "Completed", model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro", latency: "2.1s" },
           { id: "job_rag_103", file: "Feedback_Call_Aug18.mp3", action: "Meeting Minutes", date: "2026-08-26", tokens: 980, status: "Completed", model: "GPT-4o", latency: "1.8s" },
-          { id: "job_rag_104", file: "landing_hero.png", action: "Image OCR", date: "2026-08-25", tokens: 340, status: "Completed", model: "Gemini Pro", latency: "0.9s" },
+          { id: "job_rag_104", file: "landing_hero.png", action: "Image OCR", date: "2026-08-25", tokens: 340, status: "Completed", model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro", latency: "0.9s" },
           { id: "job_rag_105", file: "main.go", action: "Explain Code", date: "2026-08-24", tokens: 1940, status: "Completed", model: "GPT-4o", latency: "2.5s" },
           { id: "job_rag_106", file: "billing_invoice.jpg", action: "OCR to Text", date: "2026-08-23", tokens: 420, status: "Failed", model: "Claude 3.5", latency: "3.2s" },
-          { id: "job_rag_107", file: "medical_brief.docx", action: "Study Notes", date: "2026-08-22", tokens: 1100, status: "Completed", model: "Gemini Pro", latency: "1.6s" }
+          { id: "job_rag_107", file: "medical_brief.docx", action: "Study Notes", date: "2026-08-22", tokens: 1100, status: "Completed", model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro", latency: "1.6s" }
         ];
         localStorage.setItem("act_transform_history", JSON.stringify(historyList));
       }

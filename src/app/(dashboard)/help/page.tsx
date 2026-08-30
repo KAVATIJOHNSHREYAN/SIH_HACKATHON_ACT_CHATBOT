@@ -250,7 +250,7 @@ export default function KnowledgeCenterPage() {
       const response = await ApiClient.postChat({
         messages: [{ role: "user", content: `You are a support chatbot. Answer help queries: ${userMsg.content}` }],
         files: [],
-        model: "Gemini Pro",
+        model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro",
         apiKey: null,
         openaiKey: null,
         cohereKey: null,

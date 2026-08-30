@@ -47,7 +47,7 @@ export default function TextTransformPage() {
       const payload = {
         text: rawText,
         format: targetFormat,
-        model: "Gemini Pro",
+        model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro",
         apiKey: savedApiKey || null,
         openaiKey: savedOpenaiKey || null,
         cohereKey: savedCohereKey || null,

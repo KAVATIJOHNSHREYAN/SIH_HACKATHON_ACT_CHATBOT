@@ -1078,7 +1078,9 @@ export default function TransformPage() {
                   >
                     <option value="Gemini Pro">Gemini Pro</option>
                     <option value="GPT-4o">GPT-4o</option>
-                    <option value="Claude 3.5 Sonnet">Claude 3.5 Sonnet</option>
+                    <option value="Cohere Command A+">Cohere Command A+</option>
+                    <option value="Z.ai GLM">Z.ai GLM</option>
+                    <option value="Mistral Large">Mistral Large</option>
                   </select>
                 </div>
 

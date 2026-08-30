@@ -513,7 +513,7 @@ export default function PdfTransformPage() {
               fileName: `page_${i}.jpeg`,
               fileType: "image/jpeg",
               format: "OCR Text",
-              model: "Gemini Pro",
+              model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro",
               apiKey: savedApiKey || null,
               openaiKey: savedOpenaiKey || null,
               cohereKey: savedCohereKey || null,
@@ -569,7 +569,7 @@ export default function PdfTransformPage() {
       const transformPayload = {
         text: extractedText,
         format: targetPresetPrompt,
-        model: "Gemini Pro",
+        model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro",
         apiKey: savedApiKey || null,
         openaiKey: savedOpenaiKey || null,
         cohereKey: savedCohereKey || null,

@@ -71,7 +71,7 @@ export default function DocumentsTransformPage() {
         fileName: selectedFile.name,
         fileType: selectedFile.type || "application/pdf",
         format: targetFormat,
-        model: "Gemini Pro",
+        model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro",
         apiKey: savedApiKey || null,
         openaiKey: savedOpenaiKey || null,
         cohereKey: savedCohereKey || null,

@@ -305,7 +305,7 @@ export default function AudioTransformPage() {
           fileName: selectedFile?.name || "audio_file",
           fileType: selectedFile?.type || "audio/wav",
           format: "OCR Text",
-          model: "Gemini Pro",
+          model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro",
           apiKey: savedApiKey || null,
           openaiKey: savedOpenaiKey || null,
           cohereKey: savedCohereKey || null,
@@ -337,7 +337,7 @@ export default function AudioTransformPage() {
       const transformPayload = {
         text: currentTranscript,
         format: targetFormat,
-        model: "Gemini Pro",
+        model: typeof window !== "undefined" ? localStorage.getItem("act_selected_model") || "Gemini Pro" : "Gemini Pro",
         apiKey: savedApiKey || null,
         openaiKey: savedOpenaiKey || null,
         cohereKey: savedCohereKey || null,
